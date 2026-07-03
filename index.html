@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pour Toi et Moi - Action ou Vérité P2P</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght=500;700&family=Poppins:wght=400;600;800&display=swap');
+        :root { --bg-color: #0f0c1b; --cat1-color: #8a2be2; --cat2-color: #ff1493; --cat3-color: #ff4500; --cat4-color: #d31313; --text-main: #ffffff; --sky-blue: #87CEEB; --neon-green: #39ff14; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: linear-gradient(135deg, #1f1a3a, #0f0c1b); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-x: hidden; padding: 15px; position: relative; }
+        
+        .bg-music-toggle { position: fixed; top: 20px; right: 20px; width: 45px; height: 45px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 50%; color: white; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10000; transition: all 0.3s ease; }
+        .bg-music-toggle:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.05); }
+        .bg-music-toggle.muted { background: rgba(255, 65, 108, 0.2); border-color: rgba(255, 65, 108, 0.4); color: #ff416c; }
+
+        .game-logo-container { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 10px; }
+        .game-logo-svg { width: 80px; height: 80px; filter: drop-shadow(0 0 8px var(--cat2-color)); animation: pulseGlow 2s ease-in-out infinite alternate; }
+        #splash-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #251f47 0%, #0f0c1b 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.8s ease, transform 0.8s ease; }
+        .splash-logo { font-size: 42px; font-weight: bold; text-transform: uppercase; letter-spacing: 4px; font-family: 'Orbitron', sans-serif; background: linear-gradient(45deg, #ff1493, #8a2be2, #ff4500); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shine 3s linear infinite, pulseGlow 2s ease-in-out infinite alternate; text-align: center; margin-bottom: 20px; }
+        .splash-loader { width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.1); border-radius: 50%; border-top-color: var(--cat2-color); animation: spin 1s ease-in-out infinite; }
+        .splash-signature { position: absolute; bottom: 25px; right: 25px; font-size: 11px; font-weight: 800; letter-spacing: 3px; color: rgba(255, 255, 255, 0.3); text-transform: uppercase; font-family: monospace; }
+        
+        .screen { display: none; width: 100%; max-width: 500px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px rgba(255,255,255,0.1) solid; animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        .screen.active { display: block; }
+        #screen-gameplay { max-width: 600px; width: 100%; }
+        h1 { text-align: center; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Orbitron', sans-serif; background: linear-gradient(45deg, #ff1493, #8a2be2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 32px; }
+        .subtitle { text-align: center; font-size: 16px; margin-bottom: 25px; opacity: 0.8; color: #64ffda; font-style: italic; }
+        h2 { text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.5px; font-size: 20px; color: #ffffff; }
+        input[type="text"] { width: 100%; padding: 12px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 16px; margin-bottom: 15px; outline: none; text-align: center; }
+        button { width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 16px; font-weight: bold; color: white; cursor: pointer; transition: transform 0.2s; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        button:active { transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(90deg, #8a2be2, #ff1493); }
+        .btn-secondary { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); }
+        .btn-v { background: #00cdac; }
+        .btn-a { background: #ff416c; }
+        .btn-danger { background: linear-gradient(90deg, #d31313, #a02c00); }
+        .btn-joker { background: linear-gradient(45deg, #ffd1ff, #fad0c4); color: #0f0c1b; display: none; margin-top: 10px; font-size: 14px; }
+        .btn-joker.available { display: block; animation: pulseGlow 1s ease-in-out infinite alternate; }
+
+        .podium-box { display: flex; flex-direction: column; align-items: center; gap: 15px; margin: 20px 0; padding: 20px; background: rgba(255, 255, 255, 0.03); border-radius: 15px; border: 1px solid rgba(255,255,255,0.08); }
+        .rank-row { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 10px; font-size: 16px; }
+        .rank-1st { background: linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(255, 20, 147, 0.2)); border: 2px solid #ffd700; font-weight: bold; animation: pulseGlow 1.5s ease-in-out infinite alternate; }
+        .rank-2nd { background: rgba(255, 255, 255, 0.08); border-left: 4px solid #8a2be2; }
+        .trophy-icon { font-size: 24px; margin-right: 8px; }
+        #fireworks-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9998; display: none; }
+
+        .btn-fait, .btn-pas-fait, .btn-en-cours { animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
+        .btn-fait { background: linear-gradient(90deg, #11998e, #38ef7d); box-shadow: 0 4px 15px rgba(56, 239, 125, 0.4); }
+        .btn-fait:active { transform: scale(0.94); box-shadow: 0 0 22px rgba(56, 239, 125, 0.9); }
+        .btn-pas-fait { background: linear-gradient(90deg, #ff416c, #ff4b2b); box-shadow: 0 4px 15px rgba(255, 65, 108, 0.4); }
+        .btn-pas-fait:active { transform: scale(0.94); box-shadow: 0 0 22px rgba(255, 65, 108, 0.9); }
+        .btn-en-cours { background: linear-gradient(90deg, #f7971e, #ffd200); color: #2a1d00; animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), tickPulse 1.2s ease-in-out infinite; }
+        .btn-en-cours:active { transform: scale(0.94); }
+        @keyframes popIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes tickPulse { 0%, 100% { box-shadow: 0 0 8px rgba(255, 210, 0, 0.5); } 50% { box-shadow: 0 0 18px rgba(255, 210, 0, 0.9); } }
+        #timer-circle-element.exec-mode circle { stroke: #ffd200 !important; }
+        #timer-circle-element.exec-mode .timer-display { color: #ffd200; }
+        .card.flash-success { animation: flashGreen 0.7s ease; }
+        .card.flash-fail { animation: flashRed 0.7s ease; }
+        @keyframes flashGreen { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 20px #38ef7d); } }
+        @keyframes flashRed { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 20px #ff416c); } }
+        .cat-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 15px; }
+        .cat-btn { padding: 15px; border-radius: 12px; border: none; color: white; font-weight: bold; font-size: 15px; cursor: pointer; text-align: left; position: relative; overflow: hidden; }
+        .cat-btn::after { content: '➔'; position: absolute; right: 15px; }
+        .c1 { background: linear-gradient(135deg, #4a157d, var(--cat1-color)); }
+        .c2 { background: linear-gradient(135deg, #9b0c54, var(--cat2-color)); }
+        .c3 { background: linear-gradient(135deg, #a02c00, var(--cat3-color)); }
+        .c4 { background: linear-gradient(135deg, #7c0b0b, var(--cat4-color)); }
+        .c-rand { background: linear-gradient(135deg, #333, #666); }
+        .timer-wrapper { width: 100%; display: none; flex-direction: column; align-items: center; margin: 15px 0; }
+        .timer-circle { position: relative; width: 80px; height: 80px; border-radius: 50%; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; border: 3px solid rgba(255,255,255,0.1); }
+        .timer-display { font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: bold; color: #ffffff; z-index: 2; }
+        .timer-svg { position: absolute; top: -3px; left: -3px; width: 80px; height: 80px; transform: rotate(-90deg); }
+        .timer-svg circle { width: 80px; height: 80px; fill: transparent; stroke: var(--sky-blue); stroke-width: 4; stroke-dasharray: 226; stroke-dashoffset: 0; stroke-linecap: round; }
+        .timer-alert circle { stroke: var(--cat4-color) !important; }
+        .timer-alert .timer-display { color: var(--cat4-color); animation: blink 0.5s infinite; }
+        .penalty-box { display: none; background: rgba(211, 19, 19, 0.15); border: 1px solid var(--cat4-color); padding: 12px; border-radius: 12px; margin: 15px 0; text-align: center; animation: shake 0.5s ease-in-out; }
+        .penalty-title { color: var(--cat4-color); font-weight: bold; text-transform: uppercase; font-size: 13px; margin-bottom: 3px; }
+        .joker-indicator-wrapper { display: flex; justify-content: center; margin-bottom: 12px; }
+        .joker-card { width: 54px; height: 54px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); opacity: 0.35; filter: grayscale(1); transition: all 0.4s ease; }
+        .joker-card.lit { opacity: 1; filter: grayscale(0); background: linear-gradient(45deg, #ffd1ff, #fad0c4); border-color: var(--gold, #ffd700); box-shadow: 0 0 12px rgba(255, 215, 0, 0.7); animation: pulseGlow 1s ease-in-out infinite alternate; }
+        
+        /* Correction iOS pour la perspective 3D */
+        .card-container { perspective: 1000px; -webkit-perspective: 1000px; width: 100%; height: 320px; margin: 10px 0; position: relative; }
+        .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; }
+        .card.flipped { transform: rotateY(180deg); -webkit-transform: rotateY(180deg); }
+        
+        /* Correction iOS backface-visibility */
+        .card-face { position: absolute; top: 0; left: 0; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+        .card-front { background: repeating-conic-gradient(from 0deg, rgba(255,255,255,0.05) 0deg 6deg, transparent 6deg 45deg) 0 0/30px 30px, repeating-conic-gradient(from 0deg, rgba(255,255,255,0.05) 0deg 6deg, transparent 6deg 45deg) 15px 15px/30px 30px, radial-gradient(circle at 50% 45%, rgba(138,43,226,0.35), transparent 65%), linear-gradient(135deg, #2e284f, #1a1533); border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.4), inset 0 0 0 2px rgba(255,20,147,0.25); position: relative; overflow: hidden; z-index: 2; }
+        .card-front::before { content: ''; position: absolute; inset: 10px; border: 1.5px dashed rgba(255, 20, 147, 0.4); border-radius: 10px; pointer-events: none; background: radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 0 0 / 16px 16px no-repeat, radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 100% 0 / 16px 16px no-repeat, radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 0 100% / 16px 16px no-repeat, radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 100% 100% / 16px 16px no-repeat; background-position: -3px -3px, calc(100% + 3px) -3px, -3px calc(100% + 3px), calc(100% + 3px) calc(100% + 3px); }
+        .card-front::after { content: ''; position: absolute; top: -60%; left: -60%; width: 220%; height: 220%; background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,0.09) 50%, transparent 58%); animation: cardShine 3.2s ease-in-out infinite; pointer-events: none; }
+        @keyframes cardShine { 0%, 100% { transform: translate(-15%, -15%) rotate(12deg); } 50% { transform: translate(15%, 15%) rotate(12deg); } }
+        .card-emblem { width: 50px; height: 50px; margin-bottom: 8px; filter: drop-shadow(0 0 10px var(--cat2-color)); animation: pulseGlow 2s ease-in-out infinite alternate; position: relative; z-index: 1; }
+        .card-front h3 { font-size: 19px; opacity: 0.9; letter-spacing: 0.5px; position: relative; z-index: 1; }
+        .card-front .card-info { z-index: 1; }
+        .card-back { transform: rotateY(180deg) translateZ(1px); -webkit-transform: rotateY(180deg) translateZ(1px); font-size: 18px; line-height: 1.6; font-weight: 500; z-index: 1; }
+        .card-info { font-size: 11px; text-transform: uppercase; position: absolute; top: 15px; letter-spacing: 2px; opacity: 0.7; }
+        
+        .choice-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .chat-popup { display: none; position: fixed; bottom: 100px; right: 20px; width: 330px; height: 420px; background: linear-gradient(180deg, #1a1533 0%, #0f0c1b 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.7), 0 0 25px rgba(255, 20, 147, 0.15); z-index: 1000; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease; }
+        .chat-header { background: linear-gradient(90deg, #8a2be2, #ff1493); color: #fff; padding: 14px 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.5px; }
+        .chat-header span:first-child { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+        .chat-close-btn { cursor:pointer; font-size: 20px; opacity: 0.8; transition: 0.2s; line-height: 1; }
+        .chat-close-btn:hover { opacity: 1; transform: scale(1.15); }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 14px 10px; font-size: 14px; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+        .msg-row { display: flex; }
+        .msg-row.me { justify-content: flex-end; }
+        .msg-row.them { justify-content: flex-start; }
+        .msg-bubble { max-width: 75%; padding: 8px 13px; border-radius: 16px; line-height: 1.4; word-wrap: break-word; animation: popIn 0.25s ease; }
+        .msg-row.me .msg-bubble { background: linear-gradient(135deg, #ff1493, #8a2be2); color: #fff; border-bottom-right-radius: 4px; }
+        .msg-row.them .msg-bubble { background: rgba(255,255,255,0.1); color: #eee; border-bottom-left-radius: 4px; }
+        .msg-row.system .msg-bubble { background: transparent; color: var(--sky-blue); font-style: italic; font-size: 12px; text-align: center; margin: 0 auto; }
+        .emoji-bar { display: flex; gap: 6px; padding: 8px 10px 0 10px; overflow-x: auto; scrollbar-width: none; }
+        .emoji-bar::-webkit-scrollbar { display: none; }
+        .emoji-bar span { font-size: 20px; cursor: pointer; flex: 0 0 auto; transition: transform 0.15s ease; padding: 2px; }
+        .emoji-bar span:active { transform: scale(1.4); }
+        .chat-input-area { display: flex; gap: 8px; padding: 10px; background: rgba(255,255,255,0.04); align-items: center; }
+        .chat-input-area input { margin-bottom: 0; padding: 10px 14px; font-size: 14px; border-radius: 20px; background: rgba(255,255,255,0.08); }
+        .chat-input-area button { width: auto; margin-bottom: 0; padding: 10px 18px; border-radius: 20px; background: linear-gradient(90deg, #8a2be2, #ff1493); color: #fff; font-weight: 700; box-shadow: 0 4px 12px rgba(255, 20, 147, 0.4); }
+        .chat-input-area button:active { transform: scale(0.92); }
+        .chat-trigger { display: none; position: fixed; bottom: 20px; right: 20px; width: 62px; height: 62px; background: linear-gradient(135deg, #8a2be2, #ff1493); border-radius: 50%; box-shadow: 0 6px 20px rgba(255, 20, 147, 0.5); cursor: pointer; z-index: 999; align-items: center; justify-content: center; animation: chatFloat 2.4s ease-in-out infinite; }
+        .chat-trigger:active { transform: scale(0.9); }
+        .chat-trigger svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3)); }
+        @keyframes chatFloat { 0%, 100% { transform: translateY(0); box-shadow: 0 6px 20px rgba(255, 20, 147, 0.5); } 50% { transform: translateY(-5px); box-shadow: 0 10px 28px rgba(138, 43, 226, 0.6); } }
+        .notification-dot { display: none; position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; background: #ff3b3b; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 8px rgba(255, 59, 59, 0.8); animation: pulseGlow 0.8s ease-in-out infinite alternate; }
+        .turn-indicator { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #00cdac; }
+        .room-code-display { font-size: 24px; font-weight: bold; color: #ff1493; text-align: center; margin: 15px 0; letter-spacing: 4px; }
+        .status-msg { font-size: 14px; text-align: center; color: #64ffda; margin-bottom: 10px; font-style: italic; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes pulseGlow { 0% { transform: scale(0.96); filter: drop-shadow(0 0 8px rgba(255, 20, 147, 0.5)); } 100% { transform: scale(1.04); filter: drop-shadow(0 0 20px rgba(138, 43, 226, 0.8)); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+    </style>
+</head>
+<body>
+    <canvas id="fireworks-canvas"></canvas>
+
+    <button class="bg-music-toggle muted" id="music-btn" onclick="toggleBackgroundMusic()">🎵</button>
+
+    <div id="splash-screen">
+        <div class="game-logo-container">
+            <svg class="game-logo-svg" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#logo-grad)"/><defs><linearGradient id="logo-grad" x1="2" y1="3" x2="22" y2="21.35" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff1493" /><stop offset="100%" stop-color="#8a2be2" /></linearGradient></defs></svg>
+        </div>
+        <div class="splash-logo">Pour Toi<br>& Moi</div>
+        <div class="splash-loader"></div>
+        <div class="splash-signature">By JABOULE</div>
+    </div>
+
+    <div id="screen-setup" class="screen active">
+        <div class="game-logo-container">
+            <svg class="game-logo-svg" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#m-grad)"/><defs><linearGradient id="m-grad" x1="2" y1="3" x2="22" y2="21.35" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff1493" /><stop offset="100%" stop-color="#8a2be2" /></linearGradient></defs></svg>
+        </div>
+        <h1>Pour Toi et Moi</h1>
+        <div class="subtitle">Renforcer votre complicité</div>
+        <div style="margin: 20px 0;"><input type="text" id="p1-name" placeholder="Nom du Joueur 1" value="Lui"><input type="text" id="p2-name" placeholder="Nom du Joueur 2" value="Elle"></div>
+        <button class="btn-primary" onclick="startLocalGame()">Jouer Hors-Ligne</button>
+        <button class="btn-secondary" onclick="openMultiplayerMenu()">Mode Multijoueur à distance</button>
+        <button class="btn-danger" style="margin-top: 15px;" onclick="closeApplication()">QUITTER L'APPLICATION</button>
+    </div>
+
+    <div id="screen-multi-config" class="screen">
+        <h2>Mode À Distance</h2>
+        <div id="multi-actions">
+            <button class="btn-primary" onclick="initHost()">1. Créer un salon</button>
+            <div style="text-align: center; margin: 15px 0; opacity: 0.5;">— OU —</div>
+            <input type="text" id="join-code" placeholder="Entrez le code à 4 chiffres">
+            <button class="btn-v" onclick="initJoin()">2. Rejoindre le salon</button>
+        </div>
+        <div id="area-code-sharing" style="display: none;">
+            <p style="text-align: center; font-size: 14px;">Partagez ce code unique :</p>
+            <div class="room-code-display" id="generated-code">----</div>
+            <div class="status-msg" id="host-status">En attente de connexion...</div>
+        </div>
+        <button class="btn-secondary" style="margin-top: 20px;" onclick="cancelMultiplayer()">Retour</button>
+    </div>
+
+    <div id="screen-categories" class="screen">
+        <div class="turn-indicator" id="current-player-display">C'est au tour de !</div>
+        <h2>Sélectionnez l'Intensité</h2>
+        <div class="cat-grid" id="cat-buttons-container">
+            <button class="cat-btn c1" onclick="selectCategory(1)">1. Connexion & Découverte</button>
+            <button class="cat-btn c2" onclick="selectCategory(2)">2. Séduction & Flirt</button>
+            <button class="cat-btn c3" onclick="selectCategory(3)">3. Fantasmes & Confidences</button>
+            <button class="cat-btn c4" onclick="selectCategory(4)">4. Chambre en feu</button>
+            <button class="cat-btn c-rand" onclick="selectCategory('random')">🎲 Mode Aléatoire Complet</button>
+        </div>
+        <button class="btn-danger" onclick="endGameAndShowSummary()">Quitter la partie (Fin)</button>
+    </div>
+
+    <div id="screen-type-choice" class="screen">
+        <div class="turn-indicator" id="choice-player-display"></div>
+        <h2>Faites votre choix</h2>
+        <p style="text-align: center; opacity: 0.8; margin-bottom: 15px;" id="chosen-cat-name"></p>
+        <div class="choice-buttons" id="action-verite-container">
+            <button class="btn-v" id="btn-choice-v" onclick="drawCard('V')">VÉRITÉ</button>
+            <button class="btn-a" id="btn-choice-a" onclick="drawCard('A')">ACTION</button>
+        </div>
+        <button class="btn-secondary" style="margin-top: 20px;" id="btn-change-cat" onclick="triggerChangeCategory()">Changer de catégorie</button>
+    </div>
+
+    <div id="screen-gameplay" class="screen">
+        <div class="turn-indicator" id="game-player-display"></div>
+        <div class="joker-indicator-wrapper"><div class="joker-card" id="joker-indicator">🃏</div></div>
+        <div class="card-container" id="card-click-zone" onclick="triggerFlipCard()">
+            <div class="card" id="main-card">
+                <div class="card-face card-front">
+                    <span class="card-info" id="card-type-front">??</span>
+                    <svg class="card-emblem" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#card-emblem-grad)"/><defs><linearGradient id="card-emblem-grad" x1="2" y1="3" x2="22" y2="21.35" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff1493"/><stop offset="100%" stop-color="#8a2be2"/></linearGradient></defs></svg>
+                    <h3>Cliquez pour révéler</h3>
+                </div>
+                <div class="card-face card-back" id="card-color-back"><span class="card-info" id="card-type-back"></span><p id="card-text">Chargement...</p></div>
+            </div>
+        </div>
+        <div class="timer-wrapper" id="game-timer-wrapper"><div class="timer-circle" id="timer-circle-element"><svg class="timer-svg"><circle cx="40" cy="40" r="36" id="timer-progress-bar"></circle></svg><div class="timer-display" id="countdown-text">00</div></div></div>
+        <div class="penalty-box" id="game-penalty-box"><div class="penalty-title">⚠️ Temps Évaporé ! Pénalité :</div><p id="penalty-text"></p></div>
+        <button class="btn-fait" id="btn-action-done" style="display:none;" onclick="triggerActionDone(true)">✅ FAIT</button>
+        <button class="btn-en-cours" id="btn-en-cours" style="display:none;" onclick="triggerEnCours()">⏳ EN COURS</button>
+        <button class="btn-pas-fait" id="btn-pas-fait" style="display:none;" onclick="triggerActionDone(false)">❌ PAS FAIT</button>
+        <button class="btn-joker" id="btn-use-joker" onclick="triggerUseJoker()">🃏 Utiliser le JOKER (Passer)</button>
+        <button class="btn-primary" id="btn-next" style="display:none;" onclick="triggerNextTurn()">Tour Suivant ➔</button>
+        <button class="btn-secondary" id="btn-back-random" style="display:none;" onclick="triggerChangeCategory()">🔙 Retour aux catégories</button>
+    </div>
+
+    <div id="screen-summary" class="screen">
+        <h2>🏆 Fin de Partie</h2>
+        <p style="text-align: center; opacity: 0.8; font-size: 14px; margin-bottom: 10px;">Voici le récapitulatif de votre complicité ce soir :</p>
+        <div class="podium-box" id="summary-podium-container"></div>
+        <button class="btn-primary" onclick="quitGame()">Retour à l'accueil</button>
+    </div>
+
+    <div class="chat-trigger" id="chat-button" onclick="toggleChatPopup()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3C6.48 3 2 6.69 2 11.25c0 2.63 1.49 4.96 3.8 6.48-.13 1.05-.53 2.4-1.55 3.6 1.72-.16 3.24-.86 4.36-1.74 1.06.34 2.2.53 3.39.53 5.52 0 10-3.69 10-8.25S17.52 3 12 3z" fill="#fff"/><circle cx="8" cy="11.25" r="1.15" fill="#8a2be2"/><circle cx="12" cy="11.25" r="1.15" fill="#8a2be2"/><circle cx="16" cy="11.25" r="1.15" fill="#8a2be2"/></svg>
+        <div class="notification-dot" id="chat-badge"></div>
+    </div>
+
+    <div class="chat-popup" id="chat-window">
+        <div class="chat-header">
+            <span>💬 Discussion Secrète</span>
+            <span class="chat-close-btn" onclick="toggleChatPopup()">×</span>
+        </div>
+        <div class="chat-messages" id="chat-box"></div>
+        <div class="emoji-bar" id="emoji-bar">
+            <span onclick="insertEmoji('❤️')">❤️</span>
+            <span onclick="insertEmoji('😘')">😘</span>
+            <span onclick="insertEmoji('😍')">😍</span>
+            <span onclick="insertEmoji('🥰')">🥰</span>
+            <span onclick="insertEmoji('😂')">😂</span>
+            <span onclick="insertEmoji('🔥')">🔥</span>
+            <span onclick="insertEmoji('😉')">😉</span>
+            <span onclick="insertEmoji('👀')">👀</span>
+            <span onclick="insertEmoji('💋')">💋</span>
+            <span onclick="insertEmoji('🙈')">🙈</span>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
+            <button onclick="sendChatMessage()">Envoyer</button>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => { setTimeout(() => { const s = document.getElementById('splash-screen'); s.style.opacity = '0'; s.style.transform = 'scale(1.1)'; setTimeout(() => s.style.display = 'none', 800); }, 2500); });
+
+        // Moteur Audio optimisé pour iOS (Déverrouillage via TouchStart / Click)
+        const AudioFX = {
+            ctx: null,
+            mainVolume: null,
+            musicNode: null,
+            isMuted: true,
+
+            init() { 
+                if(!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.mainVolume = this.ctx.createGain();
+                    this.mainVolume.gain.setValueAtTime(this.isMuted ? 0 : 1, this.ctx.currentTime);
+                    this.mainVolume.connect(this.ctx.destination);
+                }
+                // Déverrouillage iOS si le contexte est suspendu
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playStart() {
+                this.init(); if(this.isMuted) return;
+                let o = this.ctx.createOscillator(), g = this.ctx.createGain();
+                o.type = 'sine'; o.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+                g.gain.setValueAtTime(0.08, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.005, this.ctx.currentTime + 0.4);
+                o.connect(g); g.connect(this.mainVolume); o.start(); o.stop(this.ctx.currentTime + 0.4);
+            },
+            playEnd() {
+                this.init(); if(this.isMuted) return;
+                let o = this.ctx.createOscillator(), g = this.ctx.createGain();
+                o.type = 'sawtooth'; o.frequency.setValueAtTime(146.83, this.ctx.currentTime);
+                g.gain.setValueAtTime(0.12, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.005, this.ctx.currentTime + 0.6);
+                o.connect(g); g.connect(this.mainVolume); o.start(); o.stop(this.ctx.currentTime + 0.6);
+            },
+            toggleMusic() {
+                this.init();
+                this.isMuted = !this.isMuted;
+                this.mainVolume.gain.setValueAtTime(this.isMuted ? 0 : 1, this.ctx.currentTime);
+                if (!this.isMuted && !this.musicNode) {
+                    this.startSynthLoop();
+                }
+                return this.isMuted;
+            },
+            startSynthLoop() {
+                let bufferSize = this.ctx.sampleRate * 8; 
+                let buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                let data = buffer.getChannelData(0);
+                let freqs = [110.00, 130.81, 146.83, 164.81, 196.00]; 
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    let t = i / this.ctx.sampleRate;
+                    let sample = 0;
+                    freqs.forEach((f, idx) => {
+                        let lfo = Math.sin(2 * Math.PI * 0.15 * t + idx);
+                        sample += Math.sin(2 * Math.PI * f * t + lfo * 0.2) * (0.15 / freqs.length);
+                    });
+                    sample += (Math.random() * 2 - 1) * 0.008;
+                    if (i < 2000) sample *= (i / 2000);
+                    if (i > bufferSize - 2000) sample *= ((bufferSize - i) / 2000);
+                    data[i] = sample;
+                }
+                
+                this.musicNode = this.ctx.createBufferSource();
+                this.musicNode.buffer = buffer;
+                this.musicNode.loop = true;
+                let musicFilter = this.ctx.createBiquadFilter();
+                musicFilter.type = 'lowpass';
+                musicFilter.frequency.setValueAtTime(800, this.ctx.currentTime);
+                this.musicNode.connect(musicFilter);
+                musicFilter.connect(this.mainVolume);
+                this.musicNode.start(0);
+            }
+        };
+
+        // Forcer le déverrouillage audio sur iOS au premier toucher d'écran
+        ['click', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, () => { AudioFX.init(); }, { once: true });
+        });
+
+        function toggleBackgroundMusic() {
+            const isMuted = AudioFX.toggleMusic();
+            const btn = document.getElementById('music-btn');
+            if(isMuted) { btn.innerText = '🔇'; btn.classList.add('muted'); } 
+            else { btn.innerText = '🎵'; btn.classList.remove('muted'); }
+        }
+
+        const Fireworks = {
+            canvas: null, ctx: null, active: false, particles: [],
+            init() {
+                this.canvas = document.getElementById('fireworks-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                window.addEventListener('resize', () => this.resize());
+                this.resize();
+            },
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; },
+            start() {
+                this.active = true; this.canvas.style.display = 'block'; this.particles = []; this.loop();
+                this.spawnInterval = setInterval(() => this.spawn(), 600);
+            },
+            stop() { this.active = false; this.canvas.style.display = 'none'; clearInterval(this.spawnInterval); },
+            spawn() {
+                let x = Math.random() * this.canvas.width, y = Math.random() * (this.canvas.height * 0.6);
+                let colors = ['#ff1493', '#8a2be2', '#ffd700', '#39ff14', '#00cdac', '#ff4500'];
+                let color = colors[Math.floor(Math.random() * colors.length)];
+                for(let i=0; i<60; i++) {
+                    let angle = Math.random() * Math.PI * 2, speed = Math.random() * 5 + 2;
+                    this.particles.push({
+                        x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                        alpha: 1, color: color, size: Math.random() * 3 + 1
+                    });
+                }
+            },
+            loop() {
+                if(!this.active) return;
+                requestAnimationFrame(() => this.loop());
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.alpha -= 0.015;
+                    if(p.alpha <= 0) { this.particles.splice(i, 1); continue; }
+                    this.ctx.globalAlpha = p.alpha; this.ctx.fillStyle = p.color;
+                    this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); this.ctx.fill();
+                }
+            }
+        };
+
+        const database = {
+            1: { name: "Connexion & Découverte", color: "var(--cat1-color)", penalty: "Boire 1 gorgée de votre verre.", V: ["Quelle a été ta toute première impression de moi ?", "Quel est le premier fou rire mémorable partagé ensemble ?"], A: ["Regarde-moi dans les yeux pendant 30 secondes sans rire.", "Fais-moi un massage rapide des épaules (1 min).", "Donne-moi 3 baisers sur les joues."] },
+            2: { name: "Séduction & Flirt", color: "var(--cat2-color)", penalty: "Faire 5 pompes ou enlever un accessoire (bijou, montre).", V: ["Quelle tenue me va particulièrement bien selon toi ?", "Quel est l'endroit insolite où tu aimerais m'embrasser ?"], A: ["Chuchote-moi un secret coquin à l'oreille.", "Viens t'asseoir sur mes genoux pendant 2 minutes.", "Donne-moi un baiser passionné dans le cou de 10 secondes."] },
+            3: { name: "Fantasmes & Confidences", color: "var(--cat3-color)", penalty: "Raconter ton pire moment de honte en public à haute voix.", V: ["Y a-t-il un fantasme secret dont tu ne m'as jamais parlé ?", "Quel est le souvenir le plus intense de nos moments intimes ?"], A: ["Bande-moi les yeux avec un vêtement pendant 1 tour.", "Mime sur moi la caresse qui te fait le plus frissonner.", "Décris avec des mots très précis ce que tu veux me faire ce soir."] },
+            4: { name: "Chambre en feu", color: "var(--cat4-color)", penalty: "Gager un vêtement majeur ou boire 3 gorgées culs-secs.", V: ["Quelle partie de ton corps est la plus sensible ce soir ?", "Quelle position te procure le plaisir le plus intense ?"], A: ["Retire un vêtement de ton choix immédiatement.", "Glisse ta main sous mes vêtements pendant 30 secondes.", "Embrasse-moi partout où tu veux pendant 45 secondes sans t'arrêter."] }
+        };
+
+        let cardDecks = {}, peerConfig = { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } };
+        let myName = "", partnerName = "", players = [], currentPlayerIndex = 0, selectedCategoryIndex = null;
+        let isMultiplayer = false, isRandomMode = false, amIHost = false, isChatOpen = false, currentCardType = null;
+        let peer = null, conn = null, PREFIX = "lovegame-2026-";
+        
+        let timerInterval = null, timeLeft = 0, initialTime = 0, currentExecDuration = null;
+        let streaks = { p1: 0, p2: 0 }, jokers = { p1: 0, p2: 0 };
+        let jokersEarnedTotal = { p1: 0, p2: 0 };
+
+        function extractExecutionDuration(text) {
+            let m = text.match(/(\d+)\s*minutes?/i); if(m) return parseInt(m[1]) * 60;
+            m = text.match(/(\d+)\s*(secondes?|sec)\b/i); if(m) return parseInt(m[1]);
+            return null;
+        }
+
+        function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+        function openMultiplayerMenu() { myName = document.getElementById('p1-name').value.trim() || "Lui"; showScreen('screen-multi-config'); }
+        function cancelMultiplayer() { if(peer) peer.destroy(); showScreen('screen-setup'); }
+
+        function initHost() {
+            document.getElementById('multi-actions').style.display = 'none'; document.getElementById('area-code-sharing').style.display = 'block';
+            const code = Math.floor(1000 + Math.random() * 9000).toString(); document.getElementById('generated-code').innerText = code;
+            amIHost = true; peer = new Peer(PREFIX + code, peerConfig);
+            peer.on('open', () => document.getElementById('host-status').innerText = "Salon ouvert. En attente...");
+            peer.on('error', () => { alert("Erreur."); cancelMultiplayer(); });
+            peer.on('connection', c => { conn = c; setupDataChannel(); });
+        }
+
+        function initJoin() {
+            const code = document.getElementById('join-code').value.trim(); if(code.length !== 4) return;
+            amIHost = false; peer = new Peer(PREFIX + "join-" + Math.floor(Math.random()*1000), peerConfig);
+            peer.on('open', () => { conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' }); setupDataChannel(); });
+            peer.on('error', () => alert("Salon introuvable."));
+        }
+
+        function setupDataChannel() {
+            conn.on('open', () => { isMultiplayer = true; document.getElementById('chat-button').style.display = 'flex'; conn.send({ type: 'HANDSHAKE', name: myName }); });
+            conn.on('data', d => {
+                if(d.type==='HANDSHAKE'){ partnerName=d.name; if(amIHost){ players=[myName, partnerName]; conn.send({type:'HANDSHAKE_REPLY', hostName:myName, syncPlayers:players}); showScreen('screen-categories'); updateTurnDisplays(); evaluateAuthority(); } }
+                else if(d.type==='HANDSHAKE_REPLY'){ partnerName=d.hostName; players=d.syncPlayers; showScreen('screen-categories'); updateTurnDisplays(); evaluateAuthority(); }
+                else if(d.type==='SELECT_CATEGORY'){ isRandomMode=d.isRandomMode; selectedCategoryIndex=d.catIndex; if(isRandomMode) drawCard(d.randomType, d.forcedIndex); else showScreen('screen-type-choice'); }
+                else if(d.type==='DRAW_CARD'){ selectedCategoryIndex=d.catIndex; isRandomMode=d.isRandomMode; executeCardDraw(d.cardType, d.cardIndex); }
+                else if(d.type==='FLIP_CARD'){ startTurnTimer(); }
+                else if(d.type==='ACTION_DONE'){ resetTimer(); applyStreakAndJoker(d.success); document.getElementById('btn-next').style.display='block'; document.getElementById('btn-action-done').style.display='none'; document.getElementById('btn-en-cours').style.display='none'; document.getElementById('btn-pas-fait').style.display='none'; document.getElementById('btn-use-joker').style.display='none'; document.getElementById('timer-circle-element').classList.remove('exec-mode'); if(!d.success){ document.getElementById('game-penalty-box').style.display='block'; document.getElementById('penalty-text').innerText=database[selectedCategoryIndex].penalty; } }
+                else if(d.type==='EN_COURS'){ resetTimer(); document.getElementById('btn-en-cours').style.display='none'; startExecutionPhase(d.execDuration); }
+                else if(d.type==='NEXT_TURN'){ executeNextTurnTransition(d.forcedCat, d.forcedType, d.forcedIndex); }
+                else if(d.type==='CHANGE_CATEGORY'){ showScreen('screen-categories'); }
+                else if(d.type==='END_GAME'){ displayLocalSummary(d.scores); }
+                else if(d.type==='CHAT'){ appendChatMessage(partnerName, d.text); if(!isChatOpen) document.getElementById('chat-badge').style.display='block'; }
+            });
+            conn.on('close', () => { alert("Déconnecté."); quitGame(); });
+        }
+
+        function startLocalGame() { isMultiplayer = false; players = [document.getElementById('p1-name').value.trim()||"Joueur 1", document.getElementById('p2-name').value.trim()||"Joueur 2"]; jokers = {p1:0, p2:0}; jokersEarnedTotal = {p1:0, p2:0}; streaks = {p1:0, p2:0}; updateTurnDisplays(); showScreen('screen-categories'); }
+        function updateTurnDisplays() {
+            const n = players[currentPlayerIndex]; document.getElementById('current-player-display').innerText = `✨ Tour de : ${n}`; document.getElementById('choice-player-display').innerText = `🤔 ${n}, fais ton choix`; document.getElementById('game-player-display').innerText = n;
+            const key = currentPlayerIndex === 0 ? 'p1' : 'p2'; const jokerCard = document.getElementById('joker-indicator');
+            if(jokers[key] > 0) jokerCard.classList.add('lit'); else jokerCard.classList.remove('lit');
+        }
+        function evaluateAuthority() { if(!isMultiplayer) return; const t = (players[currentPlayerIndex] === myName); document.getElementById('cat-buttons-container').style.pointerEvents = t?'auto':'none'; document.getElementById('action-verite-container').style.pointerEvents = t?'auto':'none'; document.getElementById('btn-change-cat').style.display = t?'block':'none'; }
+
+        function selectCategory(idx) {
+            document.getElementById('main-card').classList.remove('flipped');
+            if(idx === 'random') {
+                isRandomMode = true; selectedCategoryIndex = Math.floor(Math.random()*4)+1;
+                const t = ['A','V'][Math.floor(Math.random()*2)], cIdx = getCardIndex(selectedCategoryIndex, t);
+                if(isMultiplayer) conn.send({ type: 'SELECT_CATEGORY', catIndex: selectedCategoryIndex, isRandomMode: true, randomType: t, forcedIndex: cIdx });
+                drawCard(t, cIdx); return;
+            }
+            isRandomMode = false; selectedCategoryIndex = idx; document.getElementById('chosen-cat-name').innerText = `Catégorie : ${database[idx].name}`;
+            if(isMultiplayer) conn.send({ type: 'SELECT_CATEGORY', catIndex: idx, isRandomMode: false });
+            showScreen('screen-type-choice');
+        }
+
+        function getCardIndex(cat, type) { const k = `${cat}_${type}`; if(!cardDecks[k]||cardDecks[k].length===0){ let d = Array.from({length: database[cat][type].length},(_,i)=>i); d.sort(()=>Math.random()-0.5); cardDecks[k]=d; } return cardDecks[k].shift(); }
+        function triggerChangeCategory() { isRandomMode = false; showScreen('screen-categories'); if(isMultiplayer) conn.send({ type: 'CHANGE_CATEGORY' }); }
+
+        function drawCard(type, manual=null) {
+            currentCardType = type; const cIdx = (manual!==null)?manual:getCardIndex(selectedCategoryIndex, type);
+            if(isMultiplayer && manual===null) conn.send({ type: 'DRAW_CARD', catIndex: selectedCategoryIndex, isRandomMode: isRandomMode, cardType: type, cardIndex: cIdx });
+            executeCardDraw(type, cIdx);
+        }
+
+        function executeCardDraw(type, idx) {
+            const cat = database[selectedCategoryIndex], txt = cat[type][idx], lbl = type==='V'?'🔮 VÉRITÉ':'🎬 ACTION';
+            document.getElementById('card-type-front').innerText = lbl; document.getElementById('card-type-back').innerText = lbl; document.getElementById('card-text').innerText = txt;
+            document.getElementById('card-color-back').style.background = `linear-gradient(135deg, #111, ${cat.color})`;
+            currentExecDuration = (type === 'A') ? extractExecutionDuration(txt) : null;
+            document.getElementById('game-timer-wrapper').style.display = 'none'; document.getElementById('game-penalty-box').style.display = 'none';
+            document.getElementById('btn-next').style.display = 'none'; document.getElementById('btn-action-done').style.display = 'none'; document.getElementById('btn-en-cours').style.display = 'none'; document.getElementById('btn-pas-fait').style.display = 'none'; document.getElementById('btn-use-joker').style.display = 'none';
+            document.getElementById('btn-back-random').style.display = isRandomMode ? 'block' : 'none';
+            document.getElementById('timer-circle-element').classList.remove('exec-mode');
+            document.getElementById('card-click-zone').style.pointerEvents = 'auto';
+            showScreen('screen-gameplay');
+        }
+
+        function triggerFlipCard() {
+            if(document.getElementById('main-card').classList.contains('flipped')) return;
+            if(isMultiplayer && players[currentPlayerIndex] !== myName) return; 
+            if(isMultiplayer) conn.send({ type: 'FLIP_CARD' });
+            startTurnTimer();
+        }
+
+        function startTurnTimer() {
+            document.getElementById('main-card').classList.add('flipped');
+            document.getElementById('card-click-zone').style.pointerEvents = 'none';
+            resetTimer();
+
+            const canControl = !isMultiplayer || (players[currentPlayerIndex] === myName);
+            if(isMultiplayer) {
+                document.getElementById('game-timer-wrapper').style.display = 'none';
+                document.getElementById('game-penalty-box').style.display = 'none';
+                document.getElementById('timer-circle-element').classList.remove('timer-alert', 'exec-mode');
+                document.getElementById('btn-en-cours').style.display = 'none';
+                document.getElementById('btn-pas-fait').style.display = 'none';
+                document.getElementById('btn-use-joker').style.display = 'none';
+                if(canControl) { document.getElementById('btn-action-done').style.display = 'block'; document.getElementById('btn-action-done').innerText = '✅ Suivant'; }
+                return;
+            }
+
+            timeLeft = (currentCardType === 'V') ? 15 : 45; initialTime = timeLeft;
+            document.getElementById('game-timer-wrapper').style.display = 'flex';
+            document.getElementById('timer-circle-element').classList.remove('timer-alert', 'exec-mode');
+            updateTimerUI();
+
+            const activeKey = currentPlayerIndex === 0 ? 'p1' : 'p2';
+            document.getElementById('btn-action-done').style.display = 'block';
+            document.getElementById('btn-action-done').innerText = currentCardType === 'A' ? '✅ FAIT' : '✅ Fait / Répondu à temps';
+            if(currentCardType === 'A') { document.getElementById('btn-en-cours').style.display = 'block'; document.getElementById('btn-pas-fait').style.display = 'block'; }
+            if(jokers[activeKey] > 0) document.getElementById('btn-use-joker').style.display = 'block';
+
+            AudioFX.playStart();
+            timerInterval = setInterval(() => {
+                timeLeft--; updateTimerUI();
+                if(timeLeft <= 3) document.getElementById('timer-circle-element').classList.add('timer-alert');
+                if(timeLeft <= 0) { clearInterval(timerInterval); AudioFX.playEnd(); triggerActionDone(false); }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            document.getElementById('countdown-text').innerText = timeLeft < 10 ? '0' + timeLeft : timeLeft;
+            const progress = document.getElementById('timer-progress-bar'), strokeDash = 226;
+            progress.style.strokeDashoffset = strokeDash - (timeLeft / initialTime) * strokeDash;
+        }
+        function resetTimer() { if(timerInterval) clearInterval(timerInterval); }
+
+        function triggerEnCours() {
+            resetTimer(); if(isMultiplayer && players[currentPlayerIndex] === myName) conn.send({ type: 'EN_COURS', execDuration: currentExecDuration });
+            document.getElementById('btn-en-cours').style.display = 'none'; startExecutionPhase(currentExecDuration);
+        }
+
+        function startExecutionPhase(duration) {
+            document.getElementById('timer-circle-element').classList.add('exec-mode'); document.getElementById('timer-circle-element').classList.remove('timer-alert');
+            const canControl = !isMultiplayer || (players[currentPlayerIndex] === myName);
+            if(!duration) { document.getElementById('game-timer-wrapper').style.display = 'none'; return; }
+            timeLeft = duration; initialTime = duration; document.getElementById('game-timer-wrapper').style.display = 'flex'; updateTimerUI();
+            timerInterval = setInterval(() => {
+                timeLeft--; updateTimerUI();
+                if(timeLeft <= 3) document.getElementById('timer-circle-element').classList.add('timer-alert');
+                if(timeLeft <= 0) { clearInterval(timerInterval); AudioFX.playEnd(); if(canControl) triggerActionDone(true); }
+            }, 1000);
+        }
+
+        function triggerActionDone(success) {
+            resetTimer(); if(isMultiplayer && players[currentPlayerIndex] === myName) conn.send({ type: 'ACTION_DONE', success: success });
+            applyStreakAndJoker(success);
+            document.getElementById('btn-action-done').style.display = 'none'; document.getElementById('btn-en-cours').style.display = 'none'; document.getElementById('btn-pas-fait').style.display = 'none'; document.getElementById('btn-use-joker').style.display = 'none';
+            document.getElementById('timer-circle-element').classList.remove('exec-mode'); document.getElementById('btn-next').style.display = 'block';
+            if(!success) { document.getElementById('game-penalty-box').style.display = 'block'; document.getElementById('penalty-text').innerText = database[selectedCategoryIndex].penalty; }
+            const card = document.getElementById('main-card'), fx = success ? 'flash-success' : 'flash-fail';
+            card.classList.add(fx); setTimeout(() => card.classList.remove(fx), 700);
+        }
+
+        function applyStreakAndJoker(success) {
+            const key = currentPlayerIndex === 0 ? 'p1' : 'p2';
+            if(success) { 
+                streaks[key]++; 
+                if(streaks[key] === 8) { 
+                    jokers[key]++; 
+                    jokersEarnedTotal[key]++; 
+                    streaks[key] = 0; 
+                    alert(`🃏 JOKER GAGNÉ par ${players[currentPlayerIndex]} !`); 
+                } 
+            } else { 
+                streaks[key] = 0; 
+            }
+            updateTurnDisplays();
+        }
+
+        function triggerUseJoker() {
+            resetTimer(); const key = currentPlayerIndex === 0 ? 'p1' : 'p2'; jokers[key]--;
+            if(isMultiplayer && players[currentPlayerIndex] === myName) conn.send({ type: 'ACTION_DONE', success: true });
+            applyStreakAndJoker(true);
+            document.getElementById('btn-action-done').style.display = 'none'; document.getElementById('btn-en-cours').style.display = 'none'; document.getElementById('btn-pas-fait').style.display = 'none'; document.getElementById('btn-use-joker').style.display = 'none';
+            document.getElementById('timer-circle-element').classList.remove('exec-mode'); document.getElementById('btn-next').style.display = 'block';
+        }
+
+        function triggerNextTurn() { 
+            let fCat = null, fType = null, fIdx = null;
+            if(isRandomMode) { fCat = Math.floor(Math.random() * 4) + 1; fType = ['A', 'V'][Math.floor(Math.random() * 2)]; fIdx = getCardIndex(fCat, fType); }
+            if(isMultiplayer) conn.send({ type: 'NEXT_TURN', forcedCat: fCat, forcedType: fType, forcedIndex: fIdx });
+            executeNextTurnTransition(fCat, fType, fIdx); 
+        }
+
+        function executeNextTurnTransition(forcedCat, forcedType, forcedIndex) {
+            document.getElementById('main-card').classList.remove('flipped');
+            currentPlayerIndex = currentPlayerIndex === 0 ? 1 : 0; updateTurnDisplays(); evaluateAuthority();
+            if(isRandomMode) {
+                if(forcedCat !== null && forcedType !== null && forcedIndex !== null) { selectedCategoryIndex = forcedCat; setTimeout(() => { drawCard(forcedType, forcedIndex); }, 200); } 
+                else if(!isMultiplayer) { selectedCategoryIndex = Math.floor(Math.random() * 4) + 1; const randType = ['A', 'V'][Math.floor(Math.random() * 2)]; const randIdx = getCardIndex(selectedCategoryIndex, randType); setTimeout(() => { drawCard(randType, randIdx); }, 200); }
+            } else { setTimeout(() => { showScreen('screen-type-choice'); }, 200); }
+        }
+
+        function endGameAndShowSummary() {
+            if(isMultiplayer) conn.send({ type: 'END_GAME', scores: jokersEarnedTotal });
+            displayLocalSummary(jokersEarnedTotal);
+        }
+
+        function displayLocalSummary(finalScores) {
+            resetTimer();
+            const p1Name = players[0] || "Joueur 1", p2Name = players[1] || "Joueur 2";
+            const s1 = finalScores.p1 || 0, s2 = finalScores.p2 || 0;
+            
+            let htmlPodium = "";
+            if (s1 > s2) {
+                htmlPodium = `<div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p1Name}</strong> (Vainqueur)</div><div>${s1} Joker(s)</div></div>
+                              <div class="rank-row rank-2nd"><div><span class="trophy-icon">🥈</span>${p2Name}</div><div>${s2} Joker(s)</div></div>`;
+            } else if (s2 > s1) {
+                htmlPodium = `<div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p2Name}</strong> (Vainqueur)</div><div>${s2} Joker(s)</div></div>
+                              <div class="rank-row rank-2nd"><div><span class="trophy-icon">🥈</span>${p1Name}</div><div>${s1} Joker(s)</div></div>`;
+            } else {
+                htmlPodium = `<div class="status-msg" style="margin-bottom:10px;">Ex-æquo ! Une complicité parfaite !</div>
+                              <div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p1Name}</strong></div><div>${s1} Joker(s)</div></div>
+                              <div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p2Name}</strong></div><div>${s2} Joker(s)</div></div>`;
+            }
+            
+            document.getElementById('summary-podium-container').innerHTML = htmlPodium;
+            showScreen('screen-summary');
+            Fireworks.start();
+        }
+
+        function closeApplication() {
+            if(confirm("Voulez-vous vraiment fermer le jeu ?")) {
+                if(peer) peer.destroy();
+                window.close();
+                document.body.innerHTML = "<div style='text-align:center;padding:50px;'><h1>Jeu fermé</h1><p>Vous pouvez fermer cet onglet en toute sécurité.</p></div>";
+            }
+        }
+
+        function toggleChatPopup() { isChatOpen = !isChatOpen; document.getElementById('chat-window').style.display = isChatOpen?'flex':'none'; if(isChatOpen) document.getElementById('chat-badge').style.display='none'; }
+        function sendChatMessage() { const i = document.getElementById('chat-input'), t = i.value.trim(); if(!t)return; appendChatMessage("Moi", t); if(isMultiplayer) conn.send({ type: 'CHAT', text: t }); i.value=''; }
+        function insertEmoji(e) { const i = document.getElementById('chat-input'); i.value += e; i.focus(); }
+        function appendChatMessage(s, t) {
+            const b = document.getElementById('chat-box'), row = document.createElement('div'); row.className = 'msg-row ' + (s === 'Moi' ? 'me' : 'them');
+            row.innerHTML = `<div class="msg-bubble">${t}</div>`; b.appendChild(row); b.scrollTop = b.scrollHeight;
+        }
+        
+        function quitGame() { 
+            Fireworks.stop();
+            if(peer) peer.destroy(); 
+            location.reload(); 
+        }
+
+        Fireworks.init();
+    </script>
+</body>
+</html>
