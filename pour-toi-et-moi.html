@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pour Toi et Moi - Action ou Vérité P2P</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght=500;700&family=Poppins:wght=400;600;800&display=swap');
+        :root { --bg-color: #0f0c1b; --cat1-color: #8a2be2; --cat2-color: #ff1493; --cat3-color: #ff4500; --cat4-color: #d31313; --text-main: #ffffff; --sky-blue: #87CEEB; --neon-green: #39ff14; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background: linear-gradient(135deg, #1f1a3a, #0f0c1b); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-x: hidden; padding: 15px; position: relative; }
+        
+        /* Bouton Musique d'ambiance */
+        .bg-music-toggle { position: fixed; top: 20px; right: 20px; width: 45px; height: 45px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 50%; color: white; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10000; transition: all 0.3s ease; }
+        .bg-music-toggle:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.05); }
+        .bg-music-toggle.muted { background: rgba(255, 65, 108, 0.2); border-color: rgba(255, 65, 108, 0.4); color: #ff416c; }
+
+        .game-logo-container { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 10px; }
+        .game-logo-svg { width: 80px; height: 80px; filter: drop-shadow(0 0 8px var(--cat2-color)); animation: pulseGlow 2s ease-in-out infinite alternate; }
+        #splash-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #251f47 0%, #0f0c1b 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.8s ease, transform 0.8s ease; }
+        .splash-logo { font-size: 42px; font-weight: bold; text-transform: uppercase; letter-spacing: 4px; font-family: 'Orbitron', sans-serif; background: linear-gradient(45deg, #ff1493, #8a2be2, #ff4500); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shine 3s linear infinite, pulseGlow 2s ease-in-out infinite alternate; text-align: center; margin-bottom: 20px; }
+        .splash-loader { width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.1); border-radius: 50%; border-top-color: var(--cat2-color); animation: spin 1s ease-in-out infinite; }
+        .splash-signature { position: absolute; bottom: 25px; right: 25px; font-size: 11px; font-weight: 800; letter-spacing: 3px; color: rgba(255, 255, 255, 0.3); text-transform: uppercase; font-family: monospace; }
+        
+        .screen { display: none; width: 100%; max-width: 500px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px rgba(255,255,255,0.1) solid; animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        .screen.active { display: block; }
+        #screen-gameplay { max-width: 600px; width: 100%; }
+        h1 { text-align: center; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; font-family: 'Orbitron', sans-serif; background: linear-gradient(45deg, #ff1493, #8a2be2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 32px; }
+        .subtitle { text-align: center; font-size: 16px; margin-bottom: 25px; opacity: 0.8; color: #64ffda; font-style: italic; }
+        h2 { text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.5px; font-size: 20px; color: #ffffff; }
+        input[type="text"] { width: 100%; padding: 12px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 16px; margin-bottom: 15px; outline: none; text-align: center; }
+        button { width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 16px; font-weight: bold; color: white; cursor: pointer; transition: transform 0.2s; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        button:active { transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(90deg, #8a2be2, #ff1493); }
+        .btn-secondary { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); }
+        .btn-v { background: #00cdac; }
+        .btn-a { background: #ff416c; }
+        .btn-danger { background: linear-gradient(90deg, #d31313, #a02c00); }
+        .btn-joker { background: linear-gradient(45deg, #ffd1ff, #fad0c4); color: #0f0c1b; display: none; margin-top: 10px; font-size: 14px; }
+        .btn-joker.available { display: block; animation: pulseGlow 1s ease-in-out infinite alternate; }
+
+        /* Écran de Fin & Score */
+        .podium-box { display: flex; flex-direction: column; align-items: center; gap: 15px; margin: 20px 0; padding: 20px; background: rgba(255, 255, 255, 0.03); border-radius: 15px; border: 1px solid rgba(255,255,255,0.08); }
+        .rank-row { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 10px; font-size: 16px; }
+        .rank-1st { background: linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(255, 20, 147, 0.2)); border: 2px solid #ffd700; font-weight: bold; animation: pulseGlow 1.5s ease-in-out infinite alternate; }
+        .rank-2nd { background: rgba(255, 255, 255, 0.08); border-left: 4px solid #8a2be2; }
+        .trophy-icon { font-size: 24px; margin-right: 8px; }
+        #fireworks-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9998; display: none; }
+
+        .btn-fait, .btn-pas-fait, .btn-en-cours { animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
+        .btn-fait { background: linear-gradient(90deg, #11998e, #38ef7d); box-shadow: 0 4px 15px rgba(56, 239, 125, 0.4); }
+        .btn-fait:active { transform: scale(0.94); box-shadow: 0 0 22px rgba(56, 239, 125, 0.9); }
+        .btn-pas-fait { background: linear-gradient(90deg, #ff416c, #ff4b2b); box-shadow: 0 4px 15px rgba(255, 65, 108, 0.4); }
+        .btn-pas-fait:active { transform: scale(0.94); box-shadow: 0 0 22px rgba(255, 65, 108, 0.9); }
+        .btn-en-cours { background: linear-gradient(90deg, #f7971e, #ffd200); color: #2a1d00; animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), tickPulse 1.2s ease-in-out infinite; }
+        .btn-en-cours:active { transform: scale(0.94); }
+        @keyframes popIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes tickPulse { 0%, 100% { box-shadow: 0 0 8px rgba(255, 210, 0, 0.5); } 50% { box-shadow: 0 0 18px rgba(255, 210, 0, 0.9); } }
+        #timer-circle-element.exec-mode circle { stroke: #ffd200 !important; }
+        #timer-circle-element.exec-mode .timer-display { color: #ffd200; }
+        .card.flash-success { animation: flashGreen 0.7s ease; }
+        .card.flash-fail { animation: flashRed 0.7s ease; }
+        @keyframes flashGreen { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 20px #38ef7d); } }
+        @keyframes flashRed { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 20px #ff416c); } }
+        .cat-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 15px; }
+        .cat-btn { padding: 15px; border-radius: 12px; border: none; color: white; font-weight: bold; font-size: 15px; cursor: pointer; text-align: left; position: relative; overflow: hidden; }
+        .cat-btn::after { content: '➔'; position: absolute; right: 15px; }
+        .c1 { background: linear-gradient(135deg, #4a157d, var(--cat1-color)); }
+        .c2 { background: linear-gradient(135deg, #9b0c54, var(--cat2-color)); }
+        .c3 { background: linear-gradient(135deg, #a02c00, var(--cat3-color)); }
+        .c4 { background: linear-gradient(135deg, #7c0b0b, var(--cat4-color)); }
+        .c-rand { background: linear-gradient(135deg, #333, #666); }
+        .timer-wrapper { width: 100%; display: none; flex-direction: column; align-items: center; margin: 15px 0; }
+        .timer-circle { position: relative; width: 80px; height: 80px; border-radius: 50%; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; border: 3px solid rgba(255,255,255,0.1); }
+        .timer-display { font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: bold; color: #ffffff; z-index: 2; }
+        .timer-svg { position: absolute; top: -3px; left: -3px; width: 80px; height: 80px; transform: rotate(-90deg); }
+        .timer-svg circle { width: 80px; height: 80px; fill: transparent; stroke: var(--sky-blue); stroke-width: 4; stroke-dasharray: 226; stroke-dashoffset: 0; stroke-linecap: round; }
+        .timer-alert circle { stroke: var(--cat4-color) !important; }
+        .timer-alert .timer-display { color: var(--cat4-color); animation: blink 0.5s infinite; }
+        .penalty-box { display: none; background: rgba(211, 19, 19, 0.15); border: 1px solid var(--cat4-color); padding: 12px; border-radius: 12px; margin: 15px 0; text-align: center; animation: shake 0.5s ease-in-out; }
+        .penalty-title { color: var(--cat4-color); font-weight: bold; text-transform: uppercase; font-size: 13px; margin-bottom: 3px; }
+        .joker-indicator-wrapper { display: flex; justify-content: center; margin-bottom: 12px; }
+        .joker-card { width: 54px; height: 54px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); opacity: 0.35; filter: grayscale(1); transition: all 0.4s ease; }
+        .joker-card.lit { opacity: 1; filter: grayscale(0); background: linear-gradient(45deg, #ffd1ff, #fad0c4); border-color: var(--gold, #ffd700); box-shadow: 0 0 12px rgba(255, 215, 0, 0.7); animation: pulseGlow 1s ease-in-out infinite alternate; }
+        .card-container { perspective: 1000px; -webkit-perspective: 1000px; width: 100%; height: 320px; margin: 10px 0; position: relative; }
+        .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; }
+        .card.flipped { transform: rotateY(180deg); }
+        
+        .card-face { position: absolute; top: 0; left: 0; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+        .card-front { background: repeating-conic-gradient(from 0deg, rgba(255,255,255,0.05) 0deg 6deg, transparent 6deg 45deg) 0 0/30px 30px, repeating-conic-gradient(from 0deg, rgba(255,255,255,0.05) 0deg 6deg, transparent 6deg 45deg) 15px 15px/30px 30px, radial-gradient(circle at 50% 45%, rgba(138,43,226,0.35), transparent 65%), linear-gradient(135deg, #2e284f, #1a1533); border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.4), inset 0 0 0 2px rgba(255,20,147,0.25); position: relative; overflow: hidden; }
+        .card-front::before { content: ''; position: absolute; inset: 10px; border: 1.5px dashed rgba(255, 20, 147, 0.4); border-radius: 10px; pointer-events: none; background: radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 0 0 / 16px 16px no-repeat, radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 100% 0 / 16px 16px no-repeat, radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 0 100% / 16px 16px no-repeat, radial-gradient(circle, rgba(255,215,0,0.55) 0%, transparent 70%) 100% 100% / 16px 16px no-repeat; background-position: -3px -3px, calc(100% + 3px) -3px, -3px calc(100% + 3px), calc(100% + 3px) calc(100% + 3px); }
+        .card-front::after { content: ''; position: absolute; top: -60%; left: -60%; width: 220%; height: 220%; background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,0.09) 50%, transparent 58%); animation: cardShine 3.2s ease-in-out infinite; pointer-events: none; }
+        @keyframes cardShine { 0%, 100% { transform: translate(-15%, -15%) rotate(12deg); } 50% { transform: translate(15%, 15%) rotate(12deg); } }
+        .card-emblem { width: 50px; height: 50px; margin-bottom: 8px; filter: drop-shadow(0 0 10px var(--cat2-color)); animation: pulseGlow 2s ease-in-out infinite alternate; position: relative; z-index: 1; }
+        .card-front h3 { font-size: 19px; opacity: 0.9; letter-spacing: 0.5px; position: relative; z-index: 1; }
+        .card-front .card-info { z-index: 1; }
+        .card-back { transform: rotateY(180deg) translateZ(1px); -webkit-transform: rotateY(180deg) translateZ(1px); font-size: 18px; line-height: 1.6; font-weight: 500; }
+        .card-info { font-size: 11px; text-transform: uppercase; position: absolute; top: 15px; letter-spacing: 2px; opacity: 0.7; }
+        
+        .choice-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .chat-popup { display: none; position: fixed; bottom: 100px; right: 20px; width: 330px; height: 420px; background: linear-gradient(180deg, #1a1533 0%, #0f0c1b 100%); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.7), 0 0 25px rgba(255, 20, 147, 0.15); z-index: 1000; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease; }
+        .chat-header { background: linear-gradient(90deg, #8a2be2, #ff1493); color: #fff; padding: 14px 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.5px; }
+        .chat-header span:first-child { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+        .chat-close-btn { cursor:pointer; font-size: 20px; opacity: 0.8; transition: 0.2s; line-height: 1; }
+        .chat-close-btn:hover { opacity: 1; transform: scale(1.15); }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 14px 10px; font-size: 14px; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+        .msg-row { display: flex; }
+        .msg-row.me { justify-content: flex-end; }
+        .msg-row.them { justify-content: flex-start; }
+        .msg-bubble { max-width: 75%; padding: 8px 13px; border-radius: 16px; line-height: 1.4; word-wrap: break-word; animation: popIn 0.25s ease; }
+        .msg-row.me .msg-bubble { background: linear-gradient(135deg, #ff1493, #8a2be2); color: #fff; border-bottom-right-radius: 4px; }
+        .msg-row.them .msg-bubble { background: rgba(255,255,255,0.1); color: #eee; border-bottom-left-radius: 4px; }
+        .msg-row.system .msg-bubble { background: transparent; color: var(--sky-blue); font-style: italic; font-size: 12px; text-align: center; margin: 0 auto; }
+        .emoji-bar { display: flex; gap: 6px; padding: 8px 10px 0 10px; overflow-x: auto; scrollbar-width: none; }
+        .emoji-bar::-webkit-scrollbar { display: none; }
+        .emoji-bar span { font-size: 20px; cursor: pointer; flex: 0 0 auto; transition: transform 0.15s ease; padding: 2px; }
+        .emoji-bar span:active { transform: scale(1.4); }
+        .chat-input-area { display: flex; gap: 8px; padding: 10px; background: rgba(255,255,255,0.04); align-items: center; }
+        .chat-input-area input { margin-bottom: 0; padding: 10px 14px; font-size: 14px; border-radius: 20px; background: rgba(255,255,255,0.08); }
+        .chat-input-area button { width: auto; margin-bottom: 0; padding: 10px 18px; border-radius: 20px; background: linear-gradient(90deg, #8a2be2, #ff1493); color: #fff; font-weight: 700; box-shadow: 0 4px 12px rgba(255, 20, 147, 0.4); }
+        .chat-input-area button:active { transform: scale(0.92); }
+        .chat-trigger { display: none; position: fixed; bottom: 20px; right: 20px; width: 62px; height: 62px; background: linear-gradient(135deg, #8a2be2, #ff1493); border-radius: 50%; box-shadow: 0 6px 20px rgba(255, 20, 147, 0.5); cursor: pointer; z-index: 999; align-items: center; justify-content: center; animation: chatFloat 2.4s ease-in-out infinite; }
+        .chat-trigger:active { transform: scale(0.9); }
+        .chat-trigger svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3)); }
+        @keyframes chatFloat { 0%, 100% { transform: translateY(0); box-shadow: 0 6px 20px rgba(255, 20, 147, 0.5); } 50% { transform: translateY(-5px); box-shadow: 0 10px 28px rgba(138, 43, 226, 0.6); } }
+        .notification-dot { display: none; position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; background: #ff3b3b; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 8px rgba(255, 59, 59, 0.8); animation: pulseGlow 0.8s ease-in-out infinite alternate; }
+        .turn-indicator { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #00cdac; }
+        .room-code-display { font-size: 24px; font-weight: bold; color: #ff1493; text-align: center; margin: 15px 0; letter-spacing: 4px; }
+        .status-msg { font-size: 14px; text-align: center; color: #64ffda; margin-bottom: 10px; font-style: italic; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes pulseGlow { 0% { transform: scale(0.96); filter: drop-shadow(0 0 8px rgba(255, 20, 147, 0.5)); } 100% { transform: scale(1.04); filter: drop-shadow(0 0 20px rgba(138, 43, 226, 0.8)); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+    </style>
+</head>
+<body>
+    <canvas id="fireworks-canvas"></canvas>
+
+    <!-- Contrôle de la Musique -->
+    <button class="bg-music-toggle muted" id="music-btn" onclick="toggleBackgroundMusic()">🎵</button>
+
+    <div id="splash-screen">
+        <div class="game-logo-container">
+            <svg class="game-logo-svg" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#logo-grad)"/><defs><linearGradient id="logo-grad" x1="2" y1="3" x2="22" y2="21.35" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff1493" /><stop offset="100%" stop-color="#8a2be2" /></linearGradient></defs></svg>
+        </div>
+        <div class="splash-logo">Pour Toi<br>& Moi</div>
+        <div class="splash-loader"></div>
+        <div class="splash-signature">By JABOULE</div>
+    </div>
+
+    <div id="screen-setup" class="screen active">
+        <div class="game-logo-container">
+            <svg class="game-logo-svg" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#m-grad)"/><defs><linearGradient id="m-grad" x1="2" y1="3" x2="22" y2="21.35" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff1493" /><stop offset="100%" stop-color="#8a2be2" /></linearGradient></defs></svg>
+        </div>
+        <h1>Pour Toi et Moi</h1>
+        <div class="subtitle">Renforcer votre complicité</div>
+        <div style="margin: 20px 0;"><input type="text" id="p1-name" placeholder="Nom du Joueur 1" value="Lui"><input type="text" id="p2-name" placeholder="Nom du Joueur 2" value="Elle"></div>
+        <button class="btn-primary" onclick="startLocalGame()">Jouer Hors-Ligne</button>
+        <button class="btn-secondary" onclick="openMultiplayerMenu()">Mode Multijoueur à distance</button>
+        <button class="btn-danger" style="margin-top: 15px;" onclick="closeApplication()">QUITTER L'APPLICATION</button>
+    </div>
+
+    <div id="screen-multi-config" class="screen">
+        <h2>Mode À Distance</h2>
+        <div id="multi-actions">
+            <button class="btn-primary" onclick="initHost()">1. Créer un salon</button>
+            <div style="text-align: center; margin: 15px 0; opacity: 0.5;">— OU —</div>
+            <input type="text" id="join-code" placeholder="Entrez le code à 4 chiffres">
+            <button class="btn-v" onclick="initJoin()">2. Rejoindre le salon</button>
+        </div>
+        <div id="area-code-sharing" style="display: none;">
+            <p style="text-align: center; font-size: 14px;">Partagez ce code unique :</p>
+            <div class="room-code-display" id="generated-code">----</div>
+            <div class="status-msg" id="host-status">En attente de connexion...</div>
+        </div>
+        <button class="btn-secondary" style="margin-top: 20px;" onclick="cancelMultiplayer()">Retour</button>
+    </div>
+
+    <div id="screen-categories" class="screen">
+        <div class="turn-indicator" id="current-player-display">C'est au tour de !</div>
+        <h2>Sélectionnez l'Intensité</h2>
+        <div class="cat-grid" id="cat-buttons-container">
+            <button class="cat-btn c1" onclick="selectCategory(1)">1. Connexion & Découverte</button>
+            <button class="cat-btn c2" onclick="selectCategory(2)">2. Séduction & Flirt</button>
+            <button class="cat-btn c3" onclick="selectCategory(3)">3. Fantasmes & Confidences</button>
+            <button class="cat-btn c4" onclick="selectCategory(4)">4. Chambre en feu</button>
+            <button class="cat-btn c-rand" onclick="selectCategory('random')">🎲 Mode Aléatoire Complet</button>
+        </div>
+        <button class="btn-danger" onclick="endGameAndShowSummary()">Quitter la partie (Fin)</button>
+    </div>
+
+    <div id="screen-type-choice" class="screen">
+        <div class="turn-indicator" id="choice-player-display"></div>
+        <h2>Faites votre choix</h2>
+        <p style="text-align: center; opacity: 0.8; margin-bottom: 15px;" id="chosen-cat-name"></p>
+        <div class="choice-buttons" id="action-verite-container">
+            <button class="btn-v" id="btn-choice-v" onclick="drawCard('V')">VÉRITÉ</button>
+            <button class="btn-a" id="btn-choice-a" onclick="drawCard('A')">ACTION</button>
+        </div>
+        <button class="btn-secondary" style="margin-top: 20px;" id="btn-change-cat" onclick="triggerChangeCategory()">Changer de catégorie</button>
+    </div>
+
+    <div id="screen-gameplay" class="screen">
+        <div class="turn-indicator" id="game-player-display"></div>
+        <div class="joker-indicator-wrapper"><div class="joker-card" id="joker-indicator">🃏</div></div>
+        <div class="card-container" id="card-click-zone" onclick="triggerFlipCard()">
+            <div class="card" id="main-card">
+                <div class="card-face card-front">
+                    <span class="card-info" id="card-type-front">??</span>
+                    <svg class="card-emblem" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#card-emblem-grad)"/><defs><linearGradient id="card-emblem-grad" x1="2" y1="3" x2="22" y2="21.35" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff1493"/><stop offset="100%" stop-color="#8a2be2"/></linearGradient></defs></svg>
+                    <h3>Cliquez pour révéler</h3>
+                </div>
+                <div class="card-face card-back" id="card-color-back"><span class="card-info" id="card-type-back"></span><p id="card-text">Chargement...</p></div>
+            </div>
+        </div>
+        <div class="timer-wrapper" id="game-timer-wrapper"><div class="timer-circle" id="timer-circle-element"><svg class="timer-svg"><circle cx="40" cy="40" r="36" id="timer-progress-bar"></circle></svg><div class="timer-display" id="countdown-text">00</div></div></div>
+        <div class="penalty-box" id="game-penalty-box"><div class="penalty-title">⚠️ Temps Évaporé ! Pénalité :</div><p id="penalty-text"></p></div>
+        <button class="btn-fait" id="btn-action-done" style="display:none;" onclick="triggerActionDone(true)">✅ FAIT</button>
+        <button class="btn-en-cours" id="btn-en-cours" style="display:none;" onclick="triggerEnCours()">⏳ EN COURS</button>
+        <button class="btn-pas-fait" id="btn-pas-fait" style="display:none;" onclick="triggerActionDone(false)">❌ PAS FAIT</button>
+        <button class="btn-joker" id="btn-use-joker" onclick="triggerUseJoker()">🃏 Utiliser le JOKER (Passer)</button>
+        <button class="btn-primary" id="btn-next" style="display:none;" onclick="triggerNextTurn()">Tour Suivant ➔</button>
+        <button class="btn-secondary" id="btn-back-random" style="display:none;" onclick="triggerChangeCategory()">🔙 Retour aux catégories</button>
+    </div>
+
+    <!-- Écran de Résumé et Classement de fin -->
+    <div id="screen-summary" class="screen">
+        <h2>🏆 Fin de Partie</h2>
+        <p style="text-align: center; opacity: 0.8; font-size: 14px; margin-bottom: 10px;">Voici le récapitulatif de votre complicité ce soir :</p>
+        
+        <div class="podium-box" id="summary-podium-container">
+            <!-- Injecté en JS -->
+        </div>
+
+        <button class="btn-primary" onclick="quitGame()">Retour à l'accueil</button>
+    </div>
+
+    <div class="chat-trigger" id="chat-button" onclick="toggleChatPopup()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3C6.48 3 2 6.69 2 11.25c0 2.63 1.49 4.96 3.8 6.48-.13 1.05-.53 2.4-1.55 3.6 1.72-.16 3.24-.86 4.36-1.74 1.06.34 2.2.53 3.39.53 5.52 0 10-3.69 10-8.25S17.52 3 12 3z" fill="#fff"/><circle cx="8" cy="11.25" r="1.15" fill="#8a2be2"/><circle cx="12" cy="11.25" r="1.15" fill="#8a2be2"/><circle cx="16" cy="11.25" r="1.15" fill="#8a2be2"/></svg>
+        <div class="notification-dot" id="chat-badge"></div>
+    </div>
+
+    <div class="chat-popup" id="chat-window">
+        <div class="chat-header">
+            <span>💬 Discussion Secrète</span>
+            <span class="chat-close-btn" onclick="toggleChatPopup()">×</span>
+        </div>
+        <div class="chat-messages" id="chat-box"></div>
+        <div class="emoji-bar" id="emoji-bar">
+            <span onclick="insertEmoji('❤️')">❤️</span>
+            <span onclick="insertEmoji('😘')">😘</span>
+            <span onclick="insertEmoji('😍')">😍</span>
+            <span onclick="insertEmoji('🥰')">🥰</span>
+            <span onclick="insertEmoji('😂')">😂</span>
+            <span onclick="insertEmoji('🔥')">🔥</span>
+            <span onclick="insertEmoji('😉')">😉</span>
+            <span onclick="insertEmoji('👀')">👀</span>
+            <span onclick="insertEmoji('💋')">💋</span>
+            <span onclick="insertEmoji('🙈')">🙈</span>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
+            <button onclick="sendChatMessage()">Envoyer</button>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => { setTimeout(() => { const s = document.getElementById('splash-screen'); s.style.opacity = '0'; s.style.transform = 'scale(1.1)'; setTimeout(() => s.style.display = 'none', 800); }, 2500); });
+
+        // Moteur d'effets sonores et musique
+        const AudioFX = {
+            ctx: null,
+            mainVolume: null,
+            musicNode: null,
+            isMuted: true,
+
+            init() { 
+                if(!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.mainVolume = this.ctx.createGain();
+                    this.mainVolume.gain.setValueAtTime(this.isMuted ? 0 : 1, this.ctx.currentTime);
+                    this.mainVolume.connect(this.ctx.destination);
+                }
+            },
+            playStart() {
+                this.init(); if(this.isMuted) return;
+                let o = this.ctx.createOscillator(), g = this.ctx.createGain();
+                o.type = 'sine'; o.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+                g.gain.setValueAtTime(0.08, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.005, this.ctx.currentTime + 0.4);
+                o.connect(g); g.connect(this.mainVolume); o.start(); o.stop(this.ctx.currentTime + 0.4);
+            },
+            playEnd() {
+                this.init(); if(this.isMuted) return;
+                let o = this.ctx.createOscillator(), g = this.ctx.createGain();
+                o.type = 'sawtooth'; o.frequency.setValueAtTime(146.83, this.ctx.currentTime);
+                g.gain.setValueAtTime(0.12, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.005, this.ctx.currentTime + 0.6);
+                o.connect(g); g.connect(this.mainVolume); o.start(); o.stop(this.ctx.currentTime + 0.6);
+            },
+            toggleMusic() {
+                this.init();
+                this.isMuted = !this.isMuted;
+                this.mainVolume.gain.setValueAtTime(this.isMuted ? 0 : 1, this.ctx.currentTime);
+                if (!this.isMuted && !this.musicNode) {
+                    this.startSynthLoop();
+                }
+                return this.isMuted;
+            },
+            startSynthLoop() {
+                let bufferSize = this.ctx.sampleRate * 8; 
+                let buffer = this.ctx.createBuffer(1, bufferSize, this.sampleRate);
+                let data = buffer.getChannelData(0);
+                let freqs = [110.00, 130.81, 146.83, 164.81, 196.00]; 
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    let t = i / this.ctx.sampleRate;
+                    let sample = 0;
+                    freqs.forEach((f, idx) => {
+                        let lfo = Math.sin(2 * Math.PI * 0.15 * t + idx);
+                        sample += Math.sin(2 * Math.PI * f * t + lfo * 0.2) * (0.15 / freqs.length);
+                    });
+                    sample += (Math.random() * 2 - 1) * 0.008;
+                    if (i < 2000) sample *= (i / 2000);
+                    if (i > bufferSize - 2000) sample *= ((bufferSize - i) / 2000);
+                    data[i] = sample;
+                }
+                
+                this.musicNode = this.ctx.createBufferSource();
+                this.musicNode.buffer = buffer;
+                this.musicNode.loop = true;
+                let musicFilter = this.ctx.createBiquadFilter();
+                musicFilter.type = 'lowpass';
+                musicFilter.frequency.setValueAtTime(800, this.ctx.currentTime);
+                this.musicNode.connect(musicFilter);
+                musicFilter.connect(this.mainVolume);
+                this.musicNode.start(0);
+            }
+        };
+
+        function toggleBackgroundMusic() {
+            const isMuted = AudioFX.toggleMusic();
+            const btn = document.getElementById('music-btn');
+            if(isMuted) { btn.innerText = '🔇'; btn.classList.add('muted'); } 
+            else { btn.innerText = '🎵'; btn.classList.remove('muted'); }
+        }
+
+        // Moteur d'effets visuels - Feux d'artifice interactifs
+        const Fireworks = {
+            canvas: null, ctx: null, active: false, particles: [],
+            init() {
+                this.canvas = document.getElementById('fireworks-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                window.addEventListener('resize', () => this.resize());
+                this.resize();
+            },
+            resize() { this.canvas.width = window.innerWidth; this.canvas.height = window.innerHeight; },
+            start() {
+                this.active = true; this.canvas.style.display = 'block'; this.particles = []; this.loop();
+                this.spawnInterval = setInterval(() => this.spawn(), 600);
+            },
+            stop() { this.active = false; this.canvas.style.display = 'none'; clearInterval(this.spawnInterval); },
+            spawn() {
+                let x = Math.random() * this.canvas.width, y = Math.random() * (this.canvas.height * 0.6);
+                let colors = ['#ff1493', '#8a2be2', '#ffd700', '#39ff14', '#00cdac', '#ff4500'];
+                let color = colors[Math.floor(Math.random() * colors.length)];
+                for(let i=0; i<60; i++) {
+                    let angle = Math.random() * Math.PI * 2, speed = Math.random() * 5 + 2;
+                    this.particles.push({
+                        x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                        alpha: 1, color: color, size: Math.random() * 3 + 1
+                    });
+                }
+            },
+            loop() {
+                if(!this.active) return;
+                requestAnimationFrame(() => this.loop());
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.alpha -= 0.015;
+                    if(p.alpha <= 0) { this.particles.splice(i, 1); continue; }
+                    this.ctx.globalAlpha = p.alpha; this.ctx.fillStyle = p.color;
+                    this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); this.ctx.fill();
+                }
+            }
+        };
+
+        const database = {
+            1: { name: "Connexion & Découverte", color: "var(--cat1-color)", penalty: "Boire 1 gorgée de votre verre.",
+                V: [
+                    "Quelle a été ta toute première impression de moi (sois 100% honnête) ?",
+                    "Quel est le premier fou rire mémorable que nous avons partagé ensemble ?",
+                    "Si tu devais revivre une seule journée de notre passé amoureux, laquelle choisirais-tu ?",
+                    "Quel est le vêtement que j’ai porté un jour et qui t’a marqué(e) positivement ?",
+                    "À quel moment précis as-tu su ou senti que notre relation devenait sérieuse ?",
+                    "Quelle est la chanson qui te fait immédiatement penser à nous quand tu l’entends ?",
+                    "Quel est le plus beau cadeau (matériel ou immatériel) que je t’ai offert jusqu'ici ?",
+                    "Quel est le souvenir de vacances ou de sortie en tête-à-tête qui te réchauffe le cœur ?",
+                    "Quel rituel ou petite habitude du début de notre relation te manque parfois aujourd’hui ?",
+                    "Quelle a été la plus grande surprise que je t’ai faite depuis qu'on est ensemble ?",
+                    "Quelle est la plus grande qualité que je t'ai aidé(e) à développer chez toi ?",
+                    "Dans quelle situation te sens-tu le plus en sécurité ou apaisé(e) à mes côtés ?",
+                    "Si tu devais me décrire en seulement trois adjectifs flatteurs, lesquels choisirais-tu ?",
+                    "Quel est le trait de ma personnalité qui te fascine le plus ?",
+                    "Quelle est ma petite manie ou habitude bizarre que tu trouves secrètement très mignonne ?",
+                    "Quand nous sommes dans une pièce pleine de monde, quel est le signal secret que tu aimes me lancer ?",
+                    "Quel est le compliment que je te fais régulièrement et que tu ne te lasses jamais d'entendre ?",
+                    "Si un film ou une série devait s’inspirer de notre histoire d'amour, quel en serait le titre ?",
+                    "Quelle est la chose que je fais pour toi et qui te prouve, sans un mot, que je t'aime ?",
+                    "Quel est ton langage de l'amour principal avec moi (les mots, les cadeaux, le temps, les services, le toucher) ?",
+                    "Si on gagnait une immense somme d'argent demain, quel serait le premier projet fou à deux ?",
+                    "Quelle est la prochaine compétence, activité ou hobby que tu aimerais qu'on apprenne ensemble ?",
+                    "Comment t'imagines-tu notre couple dans 5 ans ? Qu’est-ce qui aura changé ?",
+                    "Si nous devions acheter une résidence secondaire, à quoi ressemblerait-elle et où serait-elle ?",
+                    "Quel est le rêve que tu n'as encore réalisé et pour lequel tu as besoin de mon soutien ?",
+                    "Quelle est la prochaine folie ou aventure que tu veux absolument cocher avec moi ?",
+                    "Si on devait redécorer une pièce entière de notre chez-nous ce week-end, laquelle choisirais-tu ?",
+                    "Quel est le projet de couple secret dont on parle souvent mais qu'on n'a pas encore osé démarrer ?",
+                    "Si on pouvait s'offrir une année sabbatique complète à deux, comment l'occuperais-tu ?",
+                    "Quelle est la chose que tu aimerais que l’on construise ou que l'on accomplisse ensemble cette année ?",
+                    "Quelle est ta plus grande fierté personnelle de ces derniers mois ?",
+                    "Quel est le rêve d'enfance le plus fou que tu as abandonné ou réalisé ?",
+                    "Si tu pouvais changer une seule chose mineure dans ton quotidien en ce moment, ce serait quoi ?",
+                    "Quelle est la leçon de vie la plus importante que tes proches t'ont transmise ?",
+                    "Quel est ton plus grand moteur ou ta plus grande source de motivation au réveil ?",
+                    "Y a-t-il une peur ou une insécurité irrationnelle que tu as et dont tu ne m'as jamais parlé ?",
+                    "Quel est le livre, le film ou la discussion qui a totalement changé ta vision du monde ?",
+                    "Si tu pouvais passer 24 heures dans la peau de quelqu'un d'autre, qui choisirais-tu ?",
+                    "Quelle est l'odeur ou le parfum qui te replonge instantanément dans un souvenir d'enfance ?",
+                    "Quel est le moment de ta journée (seul ou à deux) que tu ne sacrifierais pour rien au monde ?",
+                    "Quelle est la chose toute simple que je pourrais faire plus souvent pour te faciliter la vie ?",
+                    "Quel est le dernier moment magique partagé où tu t'es dit : 'Je suis tellement bien avec lui/elle' ?",
+                    "Y a-t-il un sujet dont nous ne parlons pas assez souvent à ton goût ces derniers temps ?",
+                    "Si notre couple était un plat ou une boisson, qu'est-ce qu'on serait (et pourquoi) ?",
+                    "Qu'est-ce qui, selon toi, fait notre plus grande force face aux difficultés ?",
+                    "Quelle petite attention amoureuse de ma part te fait fondre à chaque fois ?",
+                    "Quelle est l'activité quotidienne que tu préfères faire à deux plutôt que seul(e) ?",
+                    "Si tu devais choisir une pièce de notre maison qui représente le mieux notre complicité, ce serait laquelle ?",
+                    "Quel est le dernier conseil ou avis que je t'ai donné et qui t'a vraiment aidé(e) ?",
+                    "Quelle est la question parmi les précédentes que tu as eu le plus de plaisir à répondre ?"
+                ],
+                A: [
+                    "Regarde-moi dans les yeux pendant 60 secondes sans parler et sans sourire. Le premier qui flanche a un gage !",
+                    "Fais-moi un massage express des épaules ou des mains (2 minutes) en me racontant une anecdote.",
+                    "Prends mon téléphone et choisis une chanson qui définit notre complicité. Danse avec moi dessus.",
+                    "Cite 5 choses concrètes pour lesquelles tu éprouves de la gratitude envers moi aujourd’hui.",
+                    "Imite ma façon de parler ou l'une de mes expressions favorites jusqu'à ce que je devine de quoi il s'agit.",
+                    "Donne-moi 3 bisous sur 3 endroits différents du visage en me disant un mot doux pour chacun.",
+                    "Prépare-moi un cocktail rapide, un thé ou sers-moi un verre de ma boisson préférée comme un serveur pro.",
+                    "Prends ma main et dessine une forme ou un mot secret dans la paume de ma main. Je dois deviner ce que c’est.",
+                    "Raconte-moi une blague ou fais une grimace. Ton objectif est de me faire rire en moins de 30 secondes.",
+                    "Ouvre la galerie photo de ton téléphone et montre-moi la plus ancienne photo de nous deux que tu as conservée.",
+                    "Fais-moi un compliment sincère en utilisant uniquement des mots commençant par la première lettre de mon prénom.",
+                    "Prends-moi dans tes bras et tiens-moi serré(e) contre toi sans bouger pendant une minute entière.",
+                    "Écris un mini-mot doux de trois lignes sur un bout de papier et cache-le dans l'une de mes poches ou affaires.",
+                    "Coiffe-moi, recoiffe-moi ou masse-moi le cuir chevelu délicatement pendant deux minutes.",
+                    "Chante le refrain de ta chanson préférée en remplaçant toutes les fins de phrases par mon prénom.",
+                    "Fais-moi la liste des 3 moments où tu t'es senti(e) le plus fier/fière de faire équipe avec moi.",
+                    "Partage avec moi un secret d'enfance totalement ridicule ou inoffensif que tu n'as jamais raconté à personne.",
+                    "Fais-moi une déclaration d'amour théâtrale à genoux, en faisant preuve d'un maximum d'exagération drôle.",
+                    "Fermons les yeux tous les deux et touche mon visage délicatement pour deviner quelle expression je mime.",
+                    "Prends une photo de nous deux tout de suite, une photo drôle ou complice, et garde-la en favori.",
+                    "Donne-moi ta montre ou ton téléphone. Tu dois me laisser gérer le temps ou choisir le prochain gage si je veux.",
+                    "Fais-moi un résumé de notre histoire d’amour en moins de 60 secondes chrono, comme une bande-annonce de film.",
+                    "Prends mes deux mains dans les tiennes et dis-moi ce que tu ressens en touchant ma peau aujourd'hui.",
+                    "Répète après moi une phrase d'affirmation positive que je vais choisir pour toi.",
+                    "Fais une liste rapide de 3 activités gratuites que nous n'avons jamais faites à Douala et qu'on doit faire.",
+                    "Mime mon tic ou ma manie la plus fréquente au quotidien sans dire un mot. Je dois me reconnaître.",
+                    "Dessine un portrait rapide de moi sur une feuille de papier en moins d'une minute (sans regarder tes mains si possible).",
+                    "Fais-moi un massage des pieds très relaxant pendant deux minutes entières.",
+                    "Dis-moi quel est le vêtement dans mon armoire que tu détestes le plus et explique-moi pourquoi avec humour.",
+                    "Prends mon visage entre tes mains et donne-moi un baiser sur le front particulièrement tendre.",
+                    "Propose un défi ou un pari ridicule pour notre prochaine sortie à deux (le perdant paie l'addition).",
+                    "Murmure-moi trois promesses simples pour prendre soin de notre couple durant les deux prochaines semaines.",
+                    "Montre-moi ton application préférée du moment sur ton téléphone et explique-moi pourquoi elle te passionne.",
+                    "Échange un vêtement léger ou un accessoire avec moi (ex: montre, bague, t-shirt) pour le reste de la partie.",
+                    "Fais-moi rire en me racontant le pire rendez-vous amoureux ou la pire honte de ta vie d'avant.",
+                    "Prends mes deux pieds sur tes genoux et garde-les au chaud pendant les deux prochains tours.",
+                    "Prépare une liste de trois chansons à écouter ensemble lors de notre prochain trajet en voiture ou trajet partagé.",
+                    "Siffle ou fredonne l'air d'une chanson que j'aime beaucoup. Je dois deviner le titre en moins de 15 secondes.",
+                    "Dis-moi quelle est la plus belle chose que j'ai faite pour ta famille ou tes amis selon toi.",
+                    "Fais-moi un câlin 'ours' en me soulevant ou en me serrant de toutes tes forces pendant 10 secondes.",
+                    "Donne-moi ton avis sincère sur mon parfum ou ma routine de soin actuelle : qu'est-ce qui te fait craquer ?",
+                    "Trouve un objet dans la pièce qui symbolise notre amour et explique-moi pourquoi tu as choisi celui-là.",
+                    "Apprends-moi une expression ou un mot dans une autre langue ou un argot que tu connais et que je maîtrise mal.",
+                    "Fais-moi une liste de 3 moments parfaits de déconnexion totale qu'on devrait s'accorder ce mois-ci.",
+                    "Mets-toi derrière moi et chuchote une phrase d'encouragement pour un projet qui me tient à cœur.",
+                    "Fais un check ou une poignée de main secrète et compliquée avec moi. On doit la retenir pour l'avenir !",
+                    "Partage avec moi la dernière vidéo ou le dernier même qui t'a fait hurler de rire sur ton téléphone.",
+                    "Donne-moi trois petits bisous rapides sur le bout du nez, puis un grand baiser sur la joue.",
+                    "Fais la liste de 3 qualités professionnelles ou personnelles que tu admires sincèrement chez moi.",
+                    "Fais une pause de 30 secondes pour me regarder intensément et me dire simplement 'Merci d'être là'."
+                ]
+            },
+            2: { name: "Séduction & Flirt", color: "var(--cat2-color)", penalty: "Faire 5 pompes ou enlever un accessoire (bijou, montre).",
+                V: [
+                    "Quelle tenue ou quel style de vêtement me va particulièrement bien selon toi, au point de te faire de l'effet ?",
+                    "Quel est l'endroit le plus insolite ou audacieux où tu aimerais que l'on s'embrasse aujourd'hui ?",
+                    "Te souviens-toi de notre premier baiser ? Raconte-moi ce que tu as ressenti exactement à ce moment-là.",
+                    "Qu'est-ce qui te fait le plus craquer chez moi physiquement quand je me réveille le matin ?",
+                    "Y a-t-il une zone de mon corps que tu adores regarder en secret quand je ne fais pas attention ?",
+                    "Quel parfum, odeur ou gel douche chez moi a le don de stimuler immédiatement tes sens ?",
+                    "Quelle est la chose la plus romantique ou séduisante que j'ai faite pour toi récemment ?",
+                    "Si tu devais décrire mon regard quand j'ai envie de toi, quels mots utiliserais-tu ?",
+                    "Quelle a été la pensée la plus coquine ou audacieuse que tu as eue à mon sujet au cours de la semaine ?",
+                    "Quand je te frôle ou te touche 'par accident' en public, qu'est-ce qui se passe dans ta tête ?",
+                    "Quel est le compliment sur ton physique ou ton charme qui te fait le plus plaisir venant de moi ?",
+                    "Quelle partie de mon corps trouves-tu la plus élégante et la plus hypnotisante ?",
+                    "Y a-t-il un vêtement ou un sous-vêtement que tu aimerais particulièrement me voir acheter ou porter ?",
+                    "Si notre séduction réciproque était une danse, laquelle serait-elle (ex: tango, salsa, slow sensuel) ?",
+                    "Quel est le geste ou la caresse anodine de ma part qui te donne instantanément des frissons ?",
+                    "Préfères-tu quand je suis d'humeur douce et romantique ou plutôt audacieuse, entreprenante et mystérieuse ?",
+                    "Si tu pouvais m'envoyer un SMS anonyme ultra-coquin là maintenant, que contiendrait-il ?",
+                    "Quel film ou scène de film a réveillé une tension sexuelle entre nous la première fois ?",
+                    "Qu'est-ce qui t'excite le plus : mes lèvres, mes mains, mes yeux ou ma voix ?",
+                    "Si tu devais qualifier mon sex-appeal en un seul mot percutant, ce serait quoi ?",
+                    "As-tu déjà eu un rêve érotique mettant en scène notre couple dans un contexte totalement inédit ?",
+                    "Quelle est ta position préférée pour que l'on s'embrasse de manière passionnée (debout contre un mur, assis...) ?",
+                    "Quelle est la première pensée charnelle qui te traverse l'esprit quand tu me vois sortir de la douche ?",
+                    "Trouves-tu que je suis plus séduisant(e) quand je suis habillé(e) de manière très chic ou très décontractée ?",
+                    "Quel type de caresse tactile te fait immédiatement basculer d'une ambiance amicale à une ambiance de flirt ?",
+                    "Si je te proposais un rendez-vous secret ce soir dans un hôtel, quelle serait ta première réaction ?",
+                    "Quelle habitude de séduction du début de notre relation aimerais-tu réactiver plus souvent ?",
+                    "Qu'est-ce qui t'attire le plus chez moi lorsque nous sommes en train de danser ensemble ?",
+                    "Y a-t-il une chanson ultra-sensuelle sur laquelle tu imagines me voir faire un effeuillage ou un défilé ?",
+                    "Si tu devais choisir une heure de la journée où tu me trouves le/la plus désirable, ce serait quand ?",
+                    "Quel est le souvenir de notre première nuit ensemble qui reste le plus gravé dans ta mémoire ?",
+                    "Quand je te chuchote des mots doux à l'oreille, quelle tonalité de voix te fait le plus d'effet ?",
+                    "Quelle est la partie de ton corps que tu aimes le plus que je caresse pour te détendre et t'allumer ?",
+                    "Si tu devais définir mon principal atout de séduction par rapport aux autres, ce serait quoi ?",
+                    "Qu'est-ce que tu trouves sexy chez moi et qui n'a absolument rien à voir avec le physique ?",
+                    "Y a-t-il un endroit de notre maison où tu aimerais qu'on flirte plus souvent sans pour autant finir au lit ?",
+                    "Quelle est la dernière fois où tu as ressenti un énorme pic de désir pour moi en public ?",
+                    "Aimes-tu quand je prends le contrôle total du jeu de séduction ou préfères-tu mener la danse ?",
+                    "Qu'est-ce qui t'excite le plus : un baiser volé et rapide ou un long baiser passionné et interminable ?",
+                    "Si tu devais choisir un adjectif pour décrire l'alchimie physique entre nous deux, ce serait quoi ?",
+                    "Quel est le fantasme de séduction (scénario soft) que tu aimerais tester avec moi dans les prochains jours ?",
+                    "Quelle est la zone de mon cou ou de mon visage que tu aimes le plus embrasser ?",
+                    "Trouves-tu que notre complicité physique s'est améliorée avec le temps ? Pourquoi ?",
+                    "Quel est le jeu de regard que je te fais et qui te fait comprendre immédiatement mes intentions ?",
+                    "Si tu pouvais effacer une petite gêne ou timidité entre nous concernant le corps, ce serait quoi ?",
+                    "Quelle est la caresse au niveau des cheveux ou des mains qui te fait le plus d'effet lors d'un flirt ?",
+                    "Si on devait jouer au jeu du parfait inconnu dans un bar, quel rôle ou personnage aimerais-tu jouer ?",
+                    "Quel est le vêtement que je possède et que tu trouves le plus sexy au monde ?",
+                    "Qu'est-ce qui t'excite instantanément lorsque mes lèvres s'approchent des tiennes ?",
+                    "Quelle est la question de séduction de cette liste qui t'a fait le plus rougir ou sourire ?"
+                ],
+                A: [
+                    "Viens t'asseoir sur mes genoux pendant les deux prochains tours du jeu.",
+                    "Chuchote-moi à l'oreille, avec ta voix la plus suave, un secret ou une pensée intime.",
+                    "Donne-moi un baiser dans le cou, d'abord très doux, puis un peu plus mordant.",
+                    "Masse mes mains de manière très lente et sensuelle en me regardant droit dans les eyes.",
+                    "Trace une ligne imaginaire avec ton index partant de mon menton jusqu'à mon nombril, très lentement.",
+                    "Débouteonne un seul bouton de ma chemise ou retire un seul accessoire de mon corps avec tes dents.",
+                    "Fais-moi un compliment ultra-sexy sur une partie spécifique de mon physique en me touchant cette zone.",
+                    "Embrasse-moi sur les lèvres pendant 30 secondes complètes sans utiliser tes mains, elles doivent rester dans ton dos.",
+                    "Prends une mèche de mes cheveux et passe-la délicatement sur tes lèvres en fermant les yeux.",
+                    "Chuchote-moi un mot doux et excitant à l'oreille droite, puis souffle doucement sur mon oreille gauche.",
+                    "Retire tes chaussures et utilise tes pieds pour me faire une caresse le long de mes jambes sous la table.",
+                    "Mets une musique d'ambiance sexy et fais-moi une danse de séduction de 60 secondes à un mètre de moi.",
+                    "Prends ma main et place-la à l'endroit exact de ton corps où tu as envie de ressentir ma chaleur tout de suite.",
+                    "Embrasse-moi le lobe de l'oreille droite avec beaucoup de tendresse, puis mordille-le très légèrement.",
+                    "Passe tes mains sous mon t-shirt et caresse mon dos nu pendant toute la durée du prochain tour.",
+                    "Regarde-moi intensément avec ton regard le plus provocateur et le plus chaud pendant 15 secondes sans ciller.",
+                    "Enlève un vêtement non essentiel (veste, cardigan, chaussettes) de la manière la plus langoureuse possible.",
+                    "Fais couler tes doigts le long de mes bras, en partant de mes épaules jusqu'au bout de mes doigts.",
+                    "Embrasse-moi sur la joue, puis descends lentement le long de ma mâchoire jusqu'à la base de mon cou.",
+                    "Prends mon téléphone, ouvre l'application de messagerie et envoie-moi un émoji ultra-coquin en me regardant.",
+                    "Assieds-toi en face de moi, ferme les yeux, et laisse-moi te donner 3 baisers surprises où je le désire.",
+                    "Attache mes mains derrière mon dos (ou demande-moi de les garder bloquées) et donne-moi un baiser passionné.",
+                    "Fais-moi un massage de la nuque en utilisant tes deux mains de manière ferme mais terriblement sensuelle.",
+                    "Mords-toi la lèvre inférieure en me regardant fixement, puis viens mordre doucement la mienne.",
+                    "Dis-moi une phrase dans l'oreille qui commence par : 'J'ai terriblement envie de toi quand tu...'",
+                    "Utilise le bout de tes doigts pour caresser mes lèvres comme si tu dessinais leur contour.",
+                    "Glisse ta main sur ma cuisse et laisse-la s'installer confortablement pendant les trois prochains tours.",
+                    "Embrasse-moi sur les paupières, puis sur le bout du nez, et termine par un baiser enflammé sur la bouche.",
+                    "Détache mes cheveux ou recoiffe-moi d'une manière que tu trouves extrêmement sexy et attirante.",
+                    "Fais mine de m'embrasser passionnément mais arrête-toi à 1 centimètre de mes lèvres pendant 10 secondes.",
+                    "Prends mon index et lèche-le doucement ou mordille-le de façon suggestive en me fixant du regard.",
+                    "Enlève ta ceinture, ta montre ou un bijou et demande-moi de te le remettre de manière sensuelle.",
+                    "Passe derrière moi, enroule tes bras autour de ma taille et colle ton corps chaleureusement contre mon dos.",
+                    "Fais-moi un clin d'œil appuyé et coquin à chaque fois que tu prendras la parole lors du prochain tour.",
+                    "Caresse mes sourcils et mes tempes avec tes pouces pour détendre mon visage avant de m'embrasser.",
+                    "Dis-moi quel est l'endroit exact de mon corps que tu as envie de mordre à pleines dents là maintenant.",
+                    "Fais glisser tes mains le long de mes hanches en me rapprochant de toi le plus près possible.",
+                    "Ouvre un bouton supplémentaire de ton propre vêtement pour dévoiler un peu plus ta peau.",
+                    "Sers-moi un morceau de nourriture ou une gorgée de boisson directement de bouche à bouche si tu l'oses.",
+                    "Pince doucement ma taille avec tes doigts pour déclencher une décharge d'électricité entre nous.",
+                    "Chuchote-moi le nom d'un acteur ou d'une actrice célèbre que tu aimerais me voir incarner ce soir.",
+                    "Embrasse l'intérieur de mon poignet, là où bat mon pouls, de manière très douce et prolongée.",
+                    "Caresse mes genoux de manière circulaire en remontant lentement vers le bas de mes cuisses.",
+                    "Prends une grande inspiration près de mon cou et décris-moi l'effet que mon odeur naturelle te fait.",
+                    "Fais osciller tes hanches de manière suggestive pendant quelques secondes en restant assis(e).",
+                    "Donne-moi un baiser 'esquimau' (nez contre nez) ultra-mignon, suivi immédiatement d'un baiser passionné.",
+                    "Garde ta main posée sur ma nuque pendant que je réponds à la prochaine question du jeu.",
+                    "Fais mine de me déshabiller du regard de haut en bas pendant 15 secondes d'un air très gourmand.",
+                    "Souffle doucement sur mes lèvres juste avant de me donner un baiser extrêmement léger et aérien.",
+                    "Déclare-moi ta flamme charnelle en me disant exactement ce qui me rend irrésistible à tes yeux ce soir."
+                ]
+            },
+            3: { name: "Fantasmes & Confidences", color: "var(--cat3-color)", penalty: "Raconter ton pire moment de honte en public à haute voix.",
+                V: [
+                    "Y a-t-il un fantasme que tu as en tête depuis un moment, mais que tu n'as jamais osé m'avouer ?",
+                    "Quel est le souvenir le plus intense et le plus chaud que tu gardes de nos moments intimes passés ensemble ?",
+                    "Si nous devions intégrer un nouvel accessoire ou un jeu de rôle dans notre lit, ce serait quoi ?",
+                    "Quel est ton avis sincère sur l'utilisation de bandeaux pour les yeux ou de liens légers pendant l'amour ?",
+                    "As-tu un scénario de jeu de rôle récurrent en tête (ex: prof/élève, patron/secrétaire, inconnus) ?",
+                    "Quel est l'endroit public ou semi-public le plus risqué où tu as déjà eu envie de faire l'amour avec moi ?",
+                    "Y a-t-il une position sexuelle que tu as vue ou lue quelque part et que tu meurs d'envie de tester ?",
+                    "Quelle est ta vision de la domination et de la soumission légères dans le cadre de nos ébats ?",
+                    "Si on devait tourner une vidéo intime de nous deux (strictement privée), serais-tu partant(e) ou frileux/se ?",
+                    "Quel est le vêtement ou le déguisement érotique qui exciterait le plus ton imagination chez moi ?",
+                    "As-tu déjà simulé ou exagéré ton plaisir avec moi pour ne pas me vexer ? Sois totalement franc(he).",
+                    "Quelle est la partie de ton corps que tu considères comme ton jardin secret érotique ou ta zone magique ?",
+                    "Quel est le fantasme le plus fou ou inavouable que tu as déjà réalisé dans ta vie passée ou présente ?",
+                    "Si tu devais choisir un mot de sécurité ('safe word') pour nos jeux les plus intenses, quel serait-il ?",
+                    "Quelle est la température idéale pour toi pendant l'amour : une chaleur étouffante ou une fraîcheur stimulante ?",
+                    "Aimerais-tu que l'on fasse l'amour devant un grand miroir pour pouvoir observer tous nos mouvements ?",
+                    "Qu'est-ce qui t'excite le plus sur le plan mental : l'interdit, la surprise, la tendresse extrême ou l'intensité ?",
+                    "Si je te demandais de me décrire ton plaisir sous forme de métaphore (ex: une vague, un feu d'artifice), ce serait quoi ?",
+                    "Quelle est la chose la plus osée que tu serais prêt(e) à faire par amour et par pur plaisir pour moi ?",
+                    "Y a-t-il un moment de la journée spécifique où tes pulsions érotiques sont au maximum de leur intensité ?",
+                    "Quelle est la caresse ou la pratique intime dont tu as l'impression qu'on abuse un peu trop au lit ?",
+                    "Si on devait passer une nuit entière dans un love hôtel thématique, quel univers choisirais-tu ?",
+                    "Quelle est ton opinion sur le fait de se dire des mots crus ou vulgaires ('dirty talk') pendant l'acte ?",
+                    "Y a-t-il une pratique intime que tu considères comme une limite absolue à ne jamais franchir ?",
+                    "Qu'est-ce qui t'excite le plus chez un partenaire : sa confiance en lui, sa vulnérabilité ou sa force brute ?",
+                    "Si tu devais choisir une pièce de la maison autre que la chambre pour un marathon sexuel, ce serait laquelle ?",
+                    "As-tu déjà eu une pensée érotique pour moi en plein milieu d'une réunion professionnelle importante ?",
+                    "Quelle est l'importance des préliminaires pour toi sur une échelle de 1 à 10 ? Explique pourquoi.",
+                    "Si tu pouvais effacer une seule mauvaise expérience sexuelle de ton passé, ce serait quoi ?",
+                    "Quel est le type de lingerie (matière, couleur, coupe) qui te fait instantanément perdre la tête ?",
+                    "Aimes-tu quand je prends l'initiative de te réveiller en pleine nuit pour faire l'amour ?",
+                    "Y a-t-il un fantasme lié à l'eau (douche, bain, piscine, mer) que tu aimerais qu'on réalise rapidement ?",
+                    "Quelle est la chose que j'adore faire au lit et que tu tolères juste pour me faire plaisir ?",
+                    "Si tu devais définir l'orgasme parfait selon toi, quelles conditions doivent être réunies ?",
+                    "Quelle est la plus grande différence entre tes fantasmes secrets et ce que nous faisons réellement ?",
+                    "Aimerais-tu que l'on lise ensemble un livre érotique ou qu'on écoute une histoire audio sensuelle ?",
+                    "Quelle est ta réaction si je te propose de faire l'amour en gardant certains de nos vêtements ou chaussures ?",
+                    "Si tu pouvais ajouter une heure supplémentaire dédiée uniquement au plaisir dans notre semaine, quand la placerais-tu ?",
+                    "Quel est le fantasme de scénario impliquant une tierce personne fictive ou un jeu de rôle qui te titille le plus ?",
+                    "Qu'est-ce qui t'excite le plus lorsque nous faisons l'amour avec la lumière complètement allumée ?",
+                    "Quelle est ta zone érogène secondaire la plus sensible que j'ai tendance à négliger trop souvent ?",
+                    "Si tu devais choisir un accessoire coquin obligatoire pour nos ébats pendant un mois, ce serait quoi ?",
+                    "Quel est le plus grand tabou sexuel que tu as réussi à surmonter depuis que nous sommes ensemble ?",
+                    "As-tu déjà eu envie de me voir me faire plaisir tout(e) seul(e) sous tes yeux sans intervenir ?",
+                    "Quelle est la phrase ou le mot magique que je peux prononcer pour déclencher ton envie immédiate ?",
+                    "Si on devait faire l'amour dans une voiture, quel serait le meilleur spot à Douala selon toi ?",
+                    "Quelle est ton opinion sur les massages érotiques corps à corps avec de l'huile chauffante ?",
+                    "Y a-t-il une caresse buccale ou manuelle que tu préfères par-dessus tout et que je ne fais pas assez ?",
+                    "Quelle est la plus belle preuve de lâcher-prise sexuel que tu m'as donnée selon toi ?",
+                    "Quelle confidence intime de cette liste as-tu eu le plus de mal ou de plaisir à formuler ?"
+                ],
+                A: [
+                    "Montre-moi, en mimant sur moi (sans enlever de vêtements), la caresse qui te fait à coup sûr frissonner.",
+                    "Fais une liste de 3 'règles' ou désirs coquins que je devrai obligatoirement respecter cette semaine.",
+                    "Décris-moi en détail ce que tu as envie de me faire ce soir, en utilisant les mots les plus imagés possibles.",
+                    "Bande-moi les yeux avec un foulard ou un t-shirt pendant les deux prochains tours du jeu.",
+                    "Prends ma main et guide-la lentement à l'intérieur de tes vêtements sur une zone chaude, pendant 10 secondes.",
+                    "Chuchote-moi à l'oreille le scénario érotique complet de ton dernier rêve coquin en me mordillant le cou.",
+                    "Mets-toi à genoux devant moi, regarde-moi dans les yeux et demande-moi la permission de m'embrasser là où tu veux.",
+                    "Prends une position de domination totale au-dessus de moi pendant 1 minute, sans avoir le droit de faire de caresse.",
+                    "Enlève un de tes vêtements en me décrivant précisément pourquoi ce vêtement te gêne en ce moment précis.",
+                    "Fais-moi un massage sensuel du bas du dos et des fesses (par-dessus les vêtements) pendant deux minutes.",
+                    "Prends mon smartphone et écris un message ultra-cru ou coquin que tu t'envoies à toi-même pour plus tard.",
+                    "Utilise une ceinture ou un ruban pour attacher mes mains de manière symbolique durant le prochain tour.",
+                    "Donne-moi un ordre coquin ou une consigne intime que je dois exécuter immédiatement sans poser de question.",
+                    "Trace un chemin de baisers allant de ma cheville jusqu'au haut de ma cuisse (par-dessus ou par-dessous le vêtement).",
+                    "Mime la position sexuelle de tes rêves en utilisant nos deux corps habillés pour que je comprenne le concept.",
+                    "Prends un glaçon (si disponible) ou utilise ton souffle chaud pour créer un contraste thermique sur ma nuque.",
+                    "Allonge-moi sur le dos et penche-toi au-dessus de moi pour me donner un baiser inversé (façon Spider-Man).",
+                    "Dis-moi 3 mots crus ou coquins que tu n'as jamais osé prononcer à voix haute devant moi jusqu'ici.",
+                    "Caresse l'intérieur de mes cuisses avec le bout de tes ongles de manière extrêmement légère et frissonnante.",
+                    "Prends le contrôle complet de mes mouvements : dis-moi exactement comment m'asseoir et où regarder.",
+                    "Fais mine de me mordre le cou ou l'épaule de manière sauvage, puis lèche délicatement l'endroit mordu.",
+                    "Glisse ta main dans mon dos et dégrafe mon soutien-gorge (ou caresse ma poitrine par-dessus le vêtement).",
+                    "Assieds-toi à califourchon sur moi et regarde-moi droit dans les yeux en respirant au même rythme que moi.",
+                    "Fais-moi un strip-tease express de 30 secondes en enlevant un seul vêtement majeur de ton choix.",
+                    "Chuchote-moi trois choses interdites ou coquines que tu aimerais que l'on fasse dans une pièce voisine.",
+                    "Embrasse-moi sur le nombril, puis remonte très lentement en faisant de petites pauses jusqu'à mes lèvres.",
+                    "Prends mes deux mains, place-les sur tes hanches et guide mon bassin contre le tien de manière rythmée.",
+                    "Utilise tes cheveux ou une plume imaginaire pour caresser mon visage, mes lèvres et mon cou pendant une minute.",
+                    "Dis-moi quelle est la position érotique dans laquelle tu te sens le/la plus puissant(e) et irrésistible.",
+                    "Donne-moi un baiser passionné sur la bouche en introduisant ta langue de manière lente et hypnotique.",
+                    "Retire tes chaussettes ou un accessoire en utilisant uniquement tes dents en me fixant du regard.",
+                    "Fais-moi la description détaillée de la tenue érotique idéale que tu aimerais me voir porter ce soir.",
+                    "Passe ta langue le long de mon cou, en partant du bas de l'oreille jusqu'à la clavicule, sans t'arrêter.",
+                    "Bloque mes bras avec tes mains et embrasse-moi de force sur les lèvres de manière intense pendant 15 secondes.",
+                    "Donne-moi un massage crânien ultra-relaxant tout en me murmurant des mots coquins à l'oreille.",
+                    "Décris-moi la sensation exacte que tu ressens dans ton corps quand mon corps se colle au tien.",
+                    "Fais glisser ta main le long de ma colonne vertébrale, vertèbre par vertèbre, en exerçant une légère pression.",
+                    "Ouvre ton t-shirt ou ta chemise pour me laisser embrasser ta poitrine ou ton torse nu pendant 30 secondes.",
+                    "Dis-moi quelle est la chose la plus folle que tu aimerais que l'on fasse au lit avant la fin de ce week-end.",
+                    "Embrasse mes deux mains, paume après paume, puis dépose un baiser brûlant au centre de ma poitrine.",
+                    "Impose-moi un silence total pendant les deux prochains tours : je n'ai le droit de répondre que par des gestes.",
+                    "Fais mine de me donner une fessée très légère ou caresse mes fesses d'un air possessif.",
+                    "Regarde-moi fixement et décris-moi le premier souvenir érotique marquant que nous avons partagé.",
+                    "Glisse un mot doux et très explicite à l'intérieur de mon sous-vêtement en utilisant tes doigts.",
+                    "Prends mes pieds dans tes mains et masse-les de manière très sensuelle en remontant vers mes chevilles.",
+                    "Chuchote-moi à l'oreille la liste des 3 zones de ton corps qui réclament mes caresses à cet instant précis.",
+                    "Enlace-moi si fort que nos deux poitrines soient totalement collées, et reste ainsi pendant 30 secondes.",
+                    "Fais-moi un clin d'œil ultra-provocateur à chaque fois que tu piocheras une carte Vérité ou Action.",
+                    "Donne-moi un baiser mordant sur l'épaule à travers mon vêtement pour y laisser ta chaleur.",
+                    "Prends ma tête entre tes mains et donne-moi le baiser le plus long, le plus profond et le plus torride du jeu."
+                ]
+            },
+            4: { name: "Chambre en feu", color: "var(--cat4-color)", penalty: "Gager un vêtement majeur ou boire 3 gorgées culs-secs.",
+                V: [
+                    "Quelle partie de ton corps est la plus sensible ce soir, et comment veux-tu que je m'en occupe ?",
+                    "Qu'est-ce qui t'excite le plus chez moi en ce moment précis : mon regard, mes mots ou ma proximité ?",
+                    "Si tu devais me donner une note d'excitation là maintenant, de 1 à 10, on en serait où ?",
+                    "Quelle est la position sexuelle qui te procure l'orgasme le plus rapide et le plus intense ?",
+                    "Préfères-tu faire l'amour de manière rapide et sauvage ('quickie') ou lente et interminable ?",
+                    "Quelle est la dernière chose érotique à laquelle tu penses juste avant de succomber au plaisir ?",
+                    "Qu'est-ce qui provoque chez toi une décharge d'excitation immédiate : me voir nu(e) ou m'entendre gémir ?",
+                    "Quelle est ta position préférée pour me regarder jouir et savourer mon plaisir ?",
+                    "Y a-t-il une zone érogène ultra-secrète sur ton corps que nous n'avons pas encore explorée ensemble ?",
+                    "Aimes-tu quand je te pénètre ou me pénètres de manière profonde ou plutôt rapide et rythmée ?",
+                    "Quelle est ta réaction si je te propose d'utiliser des glaçons ou de la cire de bougie tiède ce soir ?",
+                    "Quelle est la caresse buccale exacte qui te fait perdre totalement le contrôle de tes sens ?",
+                    "Préfères-tu faire l'amour avec la musique à fond, un bruit de fond ou dans un silence religieux ?",
+                    "Qu'est-ce que tu trouves le plus excitant : quand je suis entièrement nu(e) ou à moitié habillé(e) ?",
+                    "Si tu devais choisir un seul endroit sur mon corps où je dois déposer mes lèvres tout de suite, ce serait où ?",
+                    "Quelle est la phrase la plus sale ou la plus excitante que tu aimerais m'entendre crier pendant l'acte ?",
+                    "Y a-t-il une position du Kama Sutra que tu trouves trop complexe mais que tu veux absolument essayer ?",
+                    "Qu'est-ce qui te fait le plus vibrer : mes caresses manuelles, mes caresses buccales ou la pénétration ?",
+                    "Quelle est l'importance du contact visuel pour toi pendant que nous faisons l'amour ?",
+                    "Si tu pouvais prolonger la durée de notre rapport sexuel de manière infinie, combien de temps viserais-tu ?",
+                    "Quelle est la caresse que je te fais et qui te donne envie de crier de plaisir à chaque fois ?",
+                    "Aimes-tu quand je te retiens les mains ou quand tu as une liberté totale de mouvement ?",
+                    "Quelle est la première chose que tu as envie de me faire une fois que ce jeu sera officiellement terminé ?",
+                    "Quelle est la partie de mon anatomie intime que tu trouves la plus parfaite et la plus excitante ?",
+                    "Trouves-tu excitant le fait de faire l'amour dans une pièce où la porte n'est pas verrouillée ?",
+                    "Quelle est ta position favorite lorsque tu es fatigué(e) mais que tu as une immense envie de plaisir ?",
+                    "Qu'est-ce qui t'excite le plus : quand je gémis discrètement ou quand j'exprime mon plaisir bruyamment ?",
+                    "Si tu devais choisir entre recevoir du plaisir ou en donner pendant la prochaine heure, tu choisirais quoi ?",
+                    "Quelle est la chose la plus audacieuse que tu aies apprise sur ton propre corps grâce à nos ébats ?",
+                    "Aimes-tu quand je te caresse à travers tes sous-vêtements avant de les retirer définitivement ?",
+                    "Quel est le fantasme de position ou de lieu que tu veux absolument cocher avant la fin de l'année ?",
+                    "Qu'est-ce qui te donne le plus de frissons : une caresse lente sur les fesses ou une morsure sur la cuisse ?",
+                    "Si on devait utiliser un lubrifiant aromatisé ou chauffant ce soir, quel parfum choisirais-tu ?",
+                    "Quelle est ta réaction si je te demande de me dominer totalement au lit pendant notre prochain rapport ?",
+                    "Quelle est la sensation que tu préfères : la douceur extrême des préliminaires ou l'intensité de l'acte ?",
+                    "Quel est le sous-vêtement que je porte en ce moment et qui te donne envie de le déchirer ?",
+                    "As-tu déjà eu envie de me voir porter des talons hauts ou un accessoire précis pendant l'amour ?",
+                    "Qu'est-ce qui t'excite le plus lorsque nos deux sexes se frôlent avant la pénétration ?",
+                    "Quelle est la caresse manuelle que tu maîtrises le mieux sur moi et qui te rend fier/fière ?",
+                    "Si tu devais décrire mon odeur intime lorsqu'on est en plein ébat, quels mots utiliserais-tu ?",
+                    "Quelle est ta position préférée pour faire l'amour le matin au réveil ?",
+                    "Qu'est-ce qui t'excite le plus : quand je te demande d'aller plus vite ou plus doucement ?",
+                    "Y a-t-il un endroit de ton corps que tu considères comme hypersensible et que je touche rarement ?",
+                    "Si on devait faire l'amour sous la douche là maintenant, quelle serait la plus grande contrainte ?",
+                    "Quelle est la plus grande folie érotique que tu sois prêt(e) à tester avec moi ce soir ?",
+                    "Aimes-tu quand je te regarde fixement dans les yeux au moment précis de ton orgasme ?",
+                    "Quel est le mot ou l'adjectif qui qualifie le mieux nos rapports charnels à cet instant précis ?",
+                    "Quelle est la partie de mes cuisses ou de mes fesses que tu as envie de mordre immédiatement ?",
+                    "Qu'est-ce que ce jeu a réveillé en toi en termes de désir physique immédiat ?",
+                    "Quelle est la question de cette catégorie finale qui t'a donné le plus d'électricité dans le bas du ventre ?"
+                ],
+                A: [
+                    "Retire un vêtement de ton choix... ou choisis-en un que je dois retirer immédiatement.",
+                    "Tu as carte blanche pendant 2 minutes : embrasse-moi partout, mais je n'ai pas le droit de bouger.",
+                    "Utilise un glaçon ou simplement le bout de tes doigts pour tracer un chemin de mes lèvres à ma taille.",
+                    "Enlève ton haut (t-shirt, chemise) de la manière la plus suggestive possible et colle ton torse contre moi.",
+                    "Glisse ta main directement dans mes sous-vêtements et caresse-moi à l'endroit le plus chaud pendant 30 secondes.",
+                    "Donne-moi 5 fessées érotiques de l'intensité de ton choix, suivies d'une caresse ultra-douce.",
+                    "Prends mes deux mains, place-les autour de ton cou ou de ta taille et guide mes caresses sous tes vêtements.",
+                    "Embrasse-moi sur la bouche de manière tellement sauvage et profonde que nous en perdions le souffle.",
+                    "Retire mon sous-vêtement (si accessible) en utilisant uniquement tes mains et sans regarder ce que tu fais.",
+                    "Lèche ou embrasse chaleureusement une zone érogène de mon corps de ton choix pendant une minute entière.",
+                    "Allonge-moi par terre ou sur le canapé, installe-toi au-dessus de moi et embrasse-moi sur tout le corps.",
+                    "Enlève ton sous-vêtement tout de suite et continue la partie de jeu sans lui jusqu'à la fin.",
+                    "Utilise tes dents pour tirer délicatement sur l'élastique de mon sous-vêtement en me fixant du regard.",
+                    "Chuchote-moi la position exacte par laquelle nous allons commencer notre nuit d'amour tout à l'heure.",
+                    "Caresse ma poitrine ou mes parties intimes de manière directe à travers mes vêtements pendant une minute.",
+                    "Donne-moi un baiser mouillé et torride à la base de la cuisse, tout près de mon jardin secret.",
+                    "Retire l'intégralité de tes vêtements pour te retrouver totalement nu(e) face à moi pour le reste du jeu.",
+                    "Prends ma langue dans ta bouche lors d'un baiser et aspire-la doucement pour me faire frissonner.",
+                    "Mords-moi la lèvre inférieure jusqu'à ce que je te demande d'arrêter ou de m'embrasser plus fort.",
+                    "Fais glisser tes mains le long de mes fesses et serre-moi contre ton bassin de manière très explicite.",
+                    "Mets-toi à genoux devant moi et retire l'un de mes vêtements majeurs avec un maximum de sensualité.",
+                    "Caresse-toi toi-même à un endroit sensible sous mes yeux pendant 30 secondes sans que je puisse t'aider.",
+                    "Prends mon index, glisse-le dans ta bouche et lèche-le de la manière la plus érotique possible.",
+                    "Donne-moi trois ordres clairs sur la manière dont je vais devoir te donner du plaisir d'ici quelques minutes.",
+                    "Embrasse-moi le long de l'intérieur de la cuisse droite, puis de la cuisse gauche en remontant très haut.",
+                    "Passe tes mains sous mes fesses, soulève-moi légèrement et frotte ton corps contre le mien.",
+                    "Chuchote-moi à l'oreille les mots les plus crus et excitateurs qui te traversent l'esprit là maintenant.",
+                    "Utilise un tissu pour me bander les yeux et caresse-moi pendant 1 minute sans me dire où tu vas me toucher.",
+                    "Retire un de mes vêtements en utilisant uniquement tes dents et tes lèvres, sans l'aide de tes mains.",
+                    "Fais couler une goutte de ta boisson sur mon cou ou ma poitrine et lèche-la lentement avec ta langue.",
+                    "Prends une pose extrêmement lascive et sexy devant moi pendant que je te regarde sans bouger pendant 30 secondes.",
+                    "Glisse tes deux mains dans mes poches arrière ou sous mes vêtements pour agripper fermement mes fesses.",
+                    "Mords délicatement mon lobe d'oreille tout en glissant ta main sur mon entrejambe par-dessus le vêtement.",
+                    "Dis-moi de fermer les yeux et donne-moi une caresse surprise à l'endroit le plus intime de mon corps.",
+                    "Retire mon haut ou ma chemise et masse ma poitrine avec tes mains nues de manière circulaire.",
+                    "Prends ma main et lèche ma paume de manière très sensuelle en me regardant droit dans les yeux.",
+                    "Installe-toi confortablement, ferme les yeux et laisse-moi te déshabiller complètement pendant 1 minute.",
+                    "Donne-moi un baiser passionné sur le cou qui se transforme en un suçon léger si je suis d'accord.",
+                    "Glisse ton corps tout entier contre le mien et effectue un mouvement de va-et-vient suggestif pendant 20 secondes.",
+                    "Prends mes deux mains, place-les sur ta poitrine ou ton torse et demande-moi de te caresser fermement.",
+                    "Dis-moi exactement quel vêtement je dois enlever pour te faire plaisir à ce stade du jeu.",
+                    "Embrasse-moi de la tempe jusqu'au menton en effectuant de petits cercles avec ta langue sur ma peau.",
+                    "Gémis mon prénom de la manière la plus sensuelle et la plus forte possible à mon oreille.",
+                    "Utilise tes ongles pour griffer très légèrement mon dos ou mes cuisses afin d'augmenter la tension.",
+                    "Prends ma tête entre tes mains et chuchote-moi : 'Tu es à moi ce soir' juste avant de m'embrasser.",
+                    "Fais glisser ta main le long de mon entrejambe de manière ferme pendant toute la durée du prochain tour.",
+                    "Retire le dernier vêtement qui nous sépare encore de la nudité totale (si ce n'est pas déjà fait).",
+                    "Donne-moi un baiser sur les lèvres si intense que nos corps doivent se lever et se coller entièrement.",
+                    "Prends-moi par la main et guide-moi directement vers le lit ou le lieu de notre futur plaisir.",
+                    "Arrêtons le jeu ici. Prends-moi dans tes bras et donne-moi le premier baiser de notre nuit passionnée."
+                ]
+            }
+        };
+
+        let cardDecks = {}, peerConfig = { config: { iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ] } };
+        let myName = "", partnerName = "", players = [], currentPlayerIndex = 0, selectedCategoryIndex = null;
+        let isMultiplayer = false, isRandomMode = false, amIHost = false, isChatOpen = false, currentCardType = null;
+        let peer = null, conn = null, PREFIX = "lovegame-2026-";
+        
+        let timerInterval = null, timeLeft = 0, initialTime = 0, currentExecDuration = null;
+        let streaks = { p1: 0, p2: 0 }, jokers = { p1: 0, p2: 0 };
+        let jokersEarnedTotal = { p1: 0, p2: 0 }; // Score persistant pour évaluer le vainqueur
+
+        function extractExecutionDuration(text) {
+            let m = text.match(/(\d+)\s*minutes?/i); if(m) return parseInt(m[1]) * 60;
+            m = text.match(/(\d+)\s*(secondes?|sec)\b/i); if(m) return parseInt(m[1]);
+            return null;
+        }
+
+        function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+        function openMultiplayerMenu() { myName = document.getElementById('p1-name').value.trim() || "Lui"; showScreen('screen-multi-config'); }
+        function cancelMultiplayer() { if(peer) peer.destroy(); showScreen('screen-setup'); }
+
+        function initHost() {
+            document.getElementById('multi-actions').style.display = 'none'; document.getElementById('area-code-sharing').style.display = 'block';
+            const code = Math.floor(1000 + Math.random() * 9000).toString(); document.getElementById('generated-code').innerText = code;
+            amIHost = true; peer = new Peer(PREFIX + code, peerConfig);
+            peer.on('open', () => document.getElementById('host-status').innerText = "Salon ouvert. En attente...");
+            peer.on('error', (err) => { console.error('Peer error:', err); alert("Erreur de connexion (" + err.type + "). Vérifie ta connexion internet et réessaie."); cancelMultiplayer(); });
+            peer.on('connection', c => { conn = c; document.getElementById('host-status').innerText = "Partenaire détecté, établissement de la connexion..."; setupDataChannel(); });
+        }
+
+        function initJoin() {
+            const code = document.getElementById('join-code').value.trim(); if(code.length !== 4) return;
+            amIHost = false; peer = new Peer(PREFIX + "join-" + Math.floor(Math.random()*1000), peerConfig);
+            peer.on('open', () => {
+                conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+                setupDataChannel();
+                const joinTimeout = setTimeout(() => {
+                    if(!isMultiplayer) alert("Impossible de rejoindre le salon (délai dépassé). Vérifie que le code est correct et que l'hôte est bien en attente, puis réessaie.");
+                }, 15000);
+                conn.on('open', () => clearTimeout(joinTimeout));
+            });
+            peer.on('error', (err) => { console.error('Peer error:', err); alert("Salon introuvable ou erreur réseau (" + err.type + ")."); });
+        }
+
+        function setupDataChannel() {
+            conn.on('error', (err) => console.error('Connection error:', err));
+            conn.on('open', () => { isMultiplayer = true; document.getElementById('chat-button').style.display = 'flex'; conn.send({ type: 'HANDSHAKE', name: myName }); });
+            conn.on('data', d => {
+                if(d.type==='HANDSHAKE'){ partnerName=d.name; if(amIHost){ players=[myName, partnerName]; conn.send({type:'HANDSHAKE_REPLY', hostName:myName, syncPlayers:players}); showScreen('screen-categories'); updateTurnDisplays(); evaluateAuthority(); } }
+                else if(d.type==='HANDSHAKE_REPLY'){ partnerName=d.hostName; players=d.syncPlayers; showScreen('screen-categories'); updateTurnDisplays(); evaluateAuthority(); }
+                else if(d.type==='SELECT_CATEGORY'){ isRandomMode=d.isRandomMode; selectedCategoryIndex=d.catIndex; if(isRandomMode) drawCard(d.randomType, d.forcedIndex); else showScreen('screen-type-choice'); }
+                else if(d.type==='DRAW_CARD'){ selectedCategoryIndex=d.catIndex; isRandomMode=d.isRandomMode; executeCardDraw(d.cardType, d.cardIndex); }
+                else if(d.type==='FLIP_CARD'){ startTurnTimer(); }
+                else if(d.type==='ACTION_DONE'){ resetTimer(); applyStreakAndJoker(d.success); document.getElementById('btn-next').style.display='block'; document.getElementById('btn-action-done').style.display='none'; document.getElementById('btn-en-cours').style.display='none'; document.getElementById('btn-pas-fait').style.display='none'; document.getElementById('btn-use-joker').style.display='none'; document.getElementById('timer-circle-element').classList.remove('exec-mode'); if(!d.success){ document.getElementById('game-penalty-box').style.display='block'; document.getElementById('penalty-text').innerText=database[selectedCategoryIndex].penalty; } }
+                else if(d.type==='EN_COURS'){ resetTimer(); document.getElementById('btn-en-cours').style.display='none'; startExecutionPhase(d.execDuration); }
+                else if(d.type==='NEXT_TURN'){ executeNextTurnTransition(d.forcedCat, d.forcedType, d.forcedIndex); }
+                else if(d.type==='CHANGE_CATEGORY'){ showScreen('screen-categories'); }
+                else if(d.type==='END_GAME'){ displayLocalSummary(d.scores); }
+                else if(d.type==='CHAT'){ appendChatMessage(partnerName, d.text); if(!isChatOpen) document.getElementById('chat-badge').style.display='block'; }
+            });
+            conn.on('close', () => { alert("Déconnecté."); quitGame(); });
+        }
+
+        function startLocalGame() { isMultiplayer = false; players = [document.getElementById('p1-name').value.trim()||"Joueur 1", document.getElementById('p2-name').value.trim()||"Joueur 2"]; jokers = {p1:0, p2:0}; jokersEarnedTotal = {p1:0, p2:0}; streaks = {p1:0, p2:0}; updateTurnDisplays(); showScreen('screen-categories'); }
+        function updateTurnDisplays() {
+            const n = players[currentPlayerIndex]; document.getElementById('current-player-display').innerText = `✨ Tour de : ${n}`; document.getElementById('choice-player-display').innerText = `🤔 ${n}, fais ton choix`; document.getElementById('game-player-display').innerText = n;
+            const key = currentPlayerIndex === 0 ? 'p1' : 'p2'; const jokerCard = document.getElementById('joker-indicator');
+            if(jokers[key] > 0) jokerCard.classList.add('lit'); else jokerCard.classList.remove('lit');
+        }
+        function evaluateAuthority() { if(!isMultiplayer) return; const t = (players[currentPlayerIndex] === myName); document.getElementById('cat-buttons-container').style.pointerEvents = t?'auto':'none'; document.getElementById('action-verite-container').style.pointerEvents = t?'auto':'none'; document.getElementById('btn-change-cat').style.display = t?'block':'none'; }
+
+        function selectCategory(idx) {
+            document.getElementById('main-card').classList.remove('flipped');
+            if(idx === 'random') {
+                isRandomMode = true; selectedCategoryIndex = Math.floor(Math.random()*4)+1;
+                const t = ['A','V'][Math.floor(Math.random()*2)], cIdx = getCardIndex(selectedCategoryIndex, t);
+                if(isMultiplayer) conn.send({ type: 'SELECT_CATEGORY', catIndex: selectedCategoryIndex, isRandomMode: true, randomType: t, forcedIndex: cIdx });
+                drawCard(t, cIdx); return;
+            }
+            isRandomMode = false; selectedCategoryIndex = idx; document.getElementById('chosen-cat-name').innerText = `Catégorie : ${database[idx].name}`;
+            if(isMultiplayer) conn.send({ type: 'SELECT_CATEGORY', catIndex: idx, isRandomMode: false });
+            showScreen('screen-type-choice');
+        }
+
+        function getCardIndex(cat, type) { const k = `${cat}_${type}`; if(!cardDecks[k]||cardDecks[k].length===0){ let d = Array.from({length: database[cat][type].length},(_,i)=>i); d.sort(()=>Math.random()-0.5); cardDecks[k]=d; } return cardDecks[k].shift(); }
+        function triggerChangeCategory() { isRandomMode = false; showScreen('screen-categories'); if(isMultiplayer) conn.send({ type: 'CHANGE_CATEGORY' }); }
+
+        function drawCard(type, manual=null) {
+            currentCardType = type; const cIdx = (manual!==null)?manual:getCardIndex(selectedCategoryIndex, type);
+            if(isMultiplayer && manual===null) conn.send({ type: 'DRAW_CARD', catIndex: selectedCategoryIndex, isRandomMode: isRandomMode, cardType: type, cardIndex: cIdx });
+            executeCardDraw(type, cIdx);
+        }
+
+        function executeCardDraw(type, idx) {
+            const cat = database[selectedCategoryIndex], txt = cat[type][idx], lbl = type==='V'?'🔮 VÉRITÉ':'🎬 ACTION';
+            document.getElementById('card-type-front').innerText = lbl; document.getElementById('card-type-back').innerText = lbl; document.getElementById('card-text').innerText = txt;
+            document.getElementById('card-color-back').style.background = `linear-gradient(135deg, #111, ${cat.color})`;
+            currentExecDuration = (type === 'A') ? extractExecutionDuration(txt) : null;
+            document.getElementById('game-timer-wrapper').style.display = 'none'; document.getElementById('game-penalty-box').style.display = 'none';
+            document.getElementById('btn-next').style.display = 'none'; document.getElementById('btn-action-done').style.display = 'none'; document.getElementById('btn-en-cours').style.display = 'none'; document.getElementById('btn-pas-fait').style.display = 'none'; document.getElementById('btn-use-joker').style.display = 'none';
+            document.getElementById('btn-back-random').style.display = isRandomMode ? 'block' : 'none';
+            document.getElementById('timer-circle-element').classList.remove('exec-mode');
+            document.getElementById('card-click-zone').style.pointerEvents = 'auto';
+            showScreen('screen-gameplay');
+        }
+
+        function triggerFlipCard() {
+            if(document.getElementById('main-card').classList.contains('flipped')) return;
+            if(isMultiplayer && players[currentPlayerIndex] !== myName) return; 
+            if(isMultiplayer) conn.send({ type: 'FLIP_CARD' });
+            startTurnTimer();
+        }
+
+        function startTurnTimer() {
+            document.getElementById('main-card').classList.add('flipped');
+            document.getElementById('card-click-zone').style.pointerEvents = 'none';
+            resetTimer();
+
+            const canControl = !isMultiplayer || (players[currentPlayerIndex] === myName);
+            if(isMultiplayer) {
+                document.getElementById('game-timer-wrapper').style.display = 'none';
+                document.getElementById('game-penalty-box').style.display = 'none';
+                document.getElementById('timer-circle-element').classList.remove('timer-alert', 'exec-mode');
+                document.getElementById('btn-en-cours').style.display = 'none';
+                document.getElementById('btn-pas-fait').style.display = 'none';
+                document.getElementById('btn-use-joker').style.display = 'none';
+                if(canControl) { document.getElementById('btn-action-done').style.display = 'block'; document.getElementById('btn-action-done').innerText = '✅ Suivant'; }
+                return;
+            }
+
+            timeLeft = (currentCardType === 'V') ? 15 : 45; initialTime = timeLeft;
+            document.getElementById('game-timer-wrapper').style.display = 'flex';
+            document.getElementById('timer-circle-element').classList.remove('timer-alert', 'exec-mode');
+            updateTimerUI();
+
+            const activeKey = currentPlayerIndex === 0 ? 'p1' : 'p2';
+            document.getElementById('btn-action-done').style.display = 'block';
+            document.getElementById('btn-action-done').innerText = currentCardType === 'A' ? '✅ FAIT' : '✅ Fait / Répondu à temps';
+            if(currentCardType === 'A') { document.getElementById('btn-en-cours').style.display = 'block'; document.getElementById('btn-pas-fait').style.display = 'block'; }
+            if(jokers[activeKey] > 0) document.getElementById('btn-use-joker').style.display = 'block';
+
+            AudioFX.playStart();
+            timerInterval = setInterval(() => {
+                timeLeft--; updateTimerUI();
+                if(timeLeft <= 3) document.getElementById('timer-circle-element').classList.add('timer-alert');
+                if(timeLeft <= 0) { clearInterval(timerInterval); AudioFX.playEnd(); triggerActionDone(false); }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            document.getElementById('countdown-text').innerText = timeLeft < 10 ? '0' + timeLeft : timeLeft;
+            const progress = document.getElementById('timer-progress-bar'), strokeDash = 226;
+            progress.style.strokeDashoffset = strokeDash - (timeLeft / initialTime) * strokeDash;
+        }
+        function resetTimer() { if(timerInterval) clearInterval(timerInterval); }
+
+        function triggerEnCours() {
+            resetTimer(); if(isMultiplayer && players[currentPlayerIndex] === myName) conn.send({ type: 'EN_COURS', execDuration: currentExecDuration });
+            document.getElementById('btn-en-cours').style.display = 'none'; startExecutionPhase(currentExecDuration);
+        }
+
+        function startExecutionPhase(duration) {
+            document.getElementById('timer-circle-element').classList.add('exec-mode'); document.getElementById('timer-circle-element').classList.remove('timer-alert');
+            const canControl = !isMultiplayer || (players[currentPlayerIndex] === myName);
+            if(!duration) { document.getElementById('game-timer-wrapper').style.display = 'none'; return; }
+            timeLeft = duration; initialTime = duration; document.getElementById('game-timer-wrapper').style.display = 'flex'; updateTimerUI();
+            timerInterval = setInterval(() => {
+                timeLeft--; updateTimerUI();
+                if(timeLeft <= 3) document.getElementById('timer-circle-element').classList.add('timer-alert');
+                if(timeLeft <= 0) { clearInterval(timerInterval); AudioFX.playEnd(); if(canControl) triggerActionDone(true); }
+            }, 1000);
+        }
+
+        function triggerActionDone(success) {
+            resetTimer(); if(isMultiplayer && players[currentPlayerIndex] === myName) conn.send({ type: 'ACTION_DONE', success: success });
+            applyStreakAndJoker(success);
+            document.getElementById('btn-action-done').style.display = 'none'; document.getElementById('btn-en-cours').style.display = 'none'; document.getElementById('btn-pas-fait').style.display = 'none'; document.getElementById('btn-use-joker').style.display = 'none';
+            document.getElementById('timer-circle-element').classList.remove('exec-mode'); document.getElementById('btn-next').style.display = 'block';
+            if(!success) { document.getElementById('game-penalty-box').style.display = 'block'; document.getElementById('penalty-text').innerText = database[selectedCategoryIndex].penalty; }
+            const card = document.getElementById('main-card'), fx = success ? 'flash-success' : 'flash-fail';
+            card.classList.add(fx); setTimeout(() => card.classList.remove(fx), 700);
+        }
+
+        function applyStreakAndJoker(success) {
+            const key = currentPlayerIndex === 0 ? 'p1' : 'p2';
+            if(success) { 
+                streaks[key]++; 
+                if(streaks[key] === 8) { 
+                    jokers[key]++; 
+                    jokersEarnedTotal[key]++; 
+                    streaks[key] = 0; 
+                    alert(`🃏 JOKER GAGNÉ par ${players[currentPlayerIndex]} !`); 
+                } 
+            } else { 
+                streaks[key] = 0; 
+            }
+            updateTurnDisplays();
+        }
+
+        function triggerUseJoker() {
+            resetTimer(); const key = currentPlayerIndex === 0 ? 'p1' : 'p2'; jokers[key]--;
+            if(isMultiplayer && players[currentPlayerIndex] === myName) conn.send({ type: 'ACTION_DONE', success: true });
+            applyStreakAndJoker(true);
+            document.getElementById('btn-action-done').style.display = 'none'; document.getElementById('btn-en-cours').style.display = 'none'; document.getElementById('btn-pas-fait').style.display = 'none'; document.getElementById('btn-use-joker').style.display = 'none';
+            document.getElementById('timer-circle-element').classList.remove('exec-mode'); document.getElementById('btn-next').style.display = 'block';
+        }
+
+        function triggerNextTurn() { 
+            let fCat = null, fType = null, fIdx = null;
+            if(isRandomMode) { fCat = Math.floor(Math.random() * 4) + 1; fType = ['A', 'V'][Math.floor(Math.random() * 2)]; fIdx = getCardIndex(fCat, fType); }
+            if(isMultiplayer) conn.send({ type: 'NEXT_TURN', forcedCat: fCat, forcedType: fType, forcedIndex: fIdx });
+            executeNextTurnTransition(fCat, fType, fIdx); 
+        }
+
+        function executeNextTurnTransition(forcedCat, forcedType, forcedIndex) {
+            document.getElementById('main-card').classList.remove('flipped');
+            currentPlayerIndex = currentPlayerIndex === 0 ? 1 : 0; updateTurnDisplays(); evaluateAuthority();
+            if(isRandomMode) {
+                if(forcedCat !== null && forcedType !== null && forcedIndex !== null) { selectedCategoryIndex = forcedCat; setTimeout(() => { drawCard(forcedType, forcedIndex); }, 200); } 
+                else if(!isMultiplayer) { selectedCategoryIndex = Math.floor(Math.random() * 4) + 1; const randType = ['A', 'V'][Math.floor(Math.random() * 2)]; const randIdx = getCardIndex(selectedCategoryIndex, randType); setTimeout(() => { drawCard(randType, randIdx); }, 200); }
+            } else { setTimeout(() => { showScreen('screen-type-choice'); }, 200); }
+        }
+
+        // Gestion de la fin de partie, calcul des résultats et feux d'artifice
+        function endGameAndShowSummary() {
+            if(isMultiplayer) conn.send({ type: 'END_GAME', scores: jokersEarnedTotal });
+            displayLocalSummary(jokersEarnedTotal);
+        }
+
+        function displayLocalSummary(finalScores) {
+            resetTimer();
+            const p1Name = players[0] || "Joueur 1", p2Name = players[1] || "Joueur 2";
+            const s1 = finalScores.p1 || 0, s2 = finalScores.p2 || 0;
+            
+            let htmlPodium = "";
+            if (s1 > s2) {
+                htmlPodium = `<div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p1Name}</strong> (Vainqueur)</div><div>${s1} Joker(s)</div></div>
+                              <div class="rank-row rank-2nd"><div><span class="trophy-icon">🥈</span>${p2Name}</div><div>${s2} Joker(s)</div></div>`;
+            } else if (s2 > s1) {
+                htmlPodium = `<div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p2Name}</strong> (Vainqueur)</div><div>${s2} Joker(s)</div></div>
+                              <div class="rank-row rank-2nd"><div><span class="trophy-icon">🥈</span>${p1Name}</div><div>${s1} Joker(s)</div></div>`;
+            } else {
+                htmlPodium = `<div class="status-msg" style="margin-bottom:10px;">Ex-æquo ! Une complicité parfaite !</div>
+                              <div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p1Name}</strong></div><div>${s1} Joker(s)</div></div>
+                              <div class="rank-row rank-1st"><div><span class="trophy-icon">🥇</span><strong>${p2Name}</strong></div><div>${s2} Joker(s)</div></div>`;
+            }
+            
+            document.getElementById('summary-podium-container').innerHTML = htmlPodium;
+            showScreen('screen-summary');
+            Fireworks.start();
+        }
+
+        function closeApplication() {
+            if(confirm("Voulez-vous vraiment fermer le jeu ?")) {
+                if(peer) peer.destroy();
+                window.close();
+                // Solution de secours si le navigateur bloque window.close()
+                document.body.innerHTML = "<div style='text-align:center;padding:50px;'><h1>Jeu fermé</h1><p>Vous pouvez fermer cet onglet en toute sécurité.</p></div>";
+            }
+        }
+
+        function toggleChatPopup() { isChatOpen = !isChatOpen; document.getElementById('chat-window').style.display = isChatOpen?'flex':'none'; if(isChatOpen) document.getElementById('chat-badge').style.display='none'; }
+        function sendChatMessage() { const i = document.getElementById('chat-input'), t = i.value.trim(); if(!t)return; appendChatMessage("Moi", t); if(isMultiplayer) conn.send({ type: 'CHAT', text: t }); i.value=''; }
+        function insertEmoji(e) { const i = document.getElementById('chat-input'); i.value += e; i.focus(); }
+        function appendChatMessage(s, t) {
+            const b = document.getElementById('chat-box'), row = document.createElement('div'); row.className = 'msg-row ' + (s === 'Moi' ? 'me' : 'them');
+            row.innerHTML = `<div class="msg-bubble">${t}</div>`; b.appendChild(row); b.scrollTop = b.scrollHeight;
+        }
+        
+        function quitGame() { 
+            Fireworks.stop();
+            if(peer) peer.destroy(); 
+            location.reload(); 
+        }
+
+        // Initialisation globale au démarrage
+        Fireworks.init();
+    </script>
+</body>
+</html>
