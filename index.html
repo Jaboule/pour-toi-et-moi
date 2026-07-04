@@ -843,22 +843,46 @@
             const code = Math.floor(1000 + Math.random() * 9000).toString(); document.getElementById('generated-code').innerText = code;
             amIHost = true; peer = new Peer(PREFIX + code, peerConfig);
             peer.on('open', () => document.getElementById('host-status').innerText = "Salon ouvert. En attente...");
-            peer.on('error', (err) => { console.error('Peer error:', err); alert("Erreur de connexion (" + err.type + "). Vérifie ta connexion internet et réessaie."); cancelMultiplayer(); });
+            peer.on('error', (err) => { console.error('Peer error:', err); if(err.type !== 'peer-unavailable') { alert("Erreur de connexion (" + err.type + "). Vérifie ta connexion internet et réessaie."); cancelMultiplayer(); } });
+            peer.on('disconnected', () => { document.getElementById('host-status').innerText = "Connexion perdue, reconnexion..."; if(peer && !peer.destroyed) peer.reconnect(); });
             peer.on('connection', c => { conn = c; document.getElementById('host-status').innerText = "Partenaire détecté, établissement de la connexion..."; setupDataChannel(); });
+
+            // iOS/Android suspendent le JS en arrière-plan : on force la reconnexion au retour au premier plan
+            document.addEventListener('visibilitychange', () => {
+                if(document.visibilityState === 'visible' && amIHost && peer && peer.disconnected && !peer.destroyed) {
+                    peer.reconnect();
+                }
+            });
         }
 
-        function initJoin() {
+        function initJoin(retryCount) {
+            retryCount = retryCount || 0;
             const code = document.getElementById('join-code').value.trim(); if(code.length !== 4) return;
-            amIHost = false; peer = new Peer(PREFIX + "join-" + Math.floor(Math.random()*1000), peerConfig);
-            peer.on('open', () => {
+            amIHost = false;
+            if(!peer || peer.destroyed) peer = new Peer(PREFIX + "join-" + Math.floor(Math.random()*1000), peerConfig);
+
+            const attemptConnect = () => {
                 conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
                 setupDataChannel();
                 const joinTimeout = setTimeout(() => {
                     if(!isMultiplayer) alert("Impossible de rejoindre le salon (délai dépassé). Vérifie que le code est correct et que l'hôte est bien en attente, puis réessaie.");
                 }, 15000);
                 conn.on('open', () => clearTimeout(joinTimeout));
+            };
+
+            if(peer.open) { attemptConnect(); }
+            else { peer.on('open', attemptConnect); }
+
+            peer.off('error');
+            peer.on('error', (err) => {
+                console.error('Peer error:', err);
+                if(err.type === 'peer-unavailable' && retryCount < 3) {
+                    // Souvent un simple souci de timing (salon pas encore pleinement enregistré côté serveur) : on retente
+                    setTimeout(() => initJoin(retryCount + 1), 1500);
+                } else {
+                    alert("Salon introuvable ou erreur réseau (" + err.type + "). Vérifie que le code est correct et que l'hôte a bien l'écran allumé, puis réessaie.");
+                }
             });
-            peer.on('error', (err) => { console.error('Peer error:', err); alert("Salon introuvable ou erreur réseau (" + err.type + ")."); });
         }
 
         function setupDataChannel() {
