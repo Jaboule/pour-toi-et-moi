@@ -813,7 +813,13 @@
             }
         };
 
-        let cardDecks = {}, peerConfig = { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } };
+        let cardDecks = {}, peerConfig = { config: { iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ] } };
         let myName = "", partnerName = "", players = [], currentPlayerIndex = 0, selectedCategoryIndex = null;
         let isMultiplayer = false, isRandomMode = false, amIHost = false, isChatOpen = false, currentCardType = null;
         let peer = null, conn = null, PREFIX = "lovegame-2026-";
@@ -837,18 +843,26 @@
             const code = Math.floor(1000 + Math.random() * 9000).toString(); document.getElementById('generated-code').innerText = code;
             amIHost = true; peer = new Peer(PREFIX + code, peerConfig);
             peer.on('open', () => document.getElementById('host-status').innerText = "Salon ouvert. En attente...");
-            peer.on('error', () => { alert("Erreur."); cancelMultiplayer(); });
-            peer.on('connection', c => { conn = c; setupDataChannel(); });
+            peer.on('error', (err) => { console.error('Peer error:', err); alert("Erreur de connexion (" + err.type + "). Vérifie ta connexion internet et réessaie."); cancelMultiplayer(); });
+            peer.on('connection', c => { conn = c; document.getElementById('host-status').innerText = "Partenaire détecté, établissement de la connexion..."; setupDataChannel(); });
         }
 
         function initJoin() {
             const code = document.getElementById('join-code').value.trim(); if(code.length !== 4) return;
             amIHost = false; peer = new Peer(PREFIX + "join-" + Math.floor(Math.random()*1000), peerConfig);
-            peer.on('open', () => { conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' }); setupDataChannel(); });
-            peer.on('error', () => alert("Salon introuvable."));
+            peer.on('open', () => {
+                conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+                setupDataChannel();
+                const joinTimeout = setTimeout(() => {
+                    if(!isMultiplayer) alert("Impossible de rejoindre le salon (délai dépassé). Vérifie que le code est correct et que l'hôte est bien en attente, puis réessaie.");
+                }, 15000);
+                conn.on('open', () => clearTimeout(joinTimeout));
+            });
+            peer.on('error', (err) => { console.error('Peer error:', err); alert("Salon introuvable ou erreur réseau (" + err.type + ")."); });
         }
 
         function setupDataChannel() {
+            conn.on('error', (err) => console.error('Connection error:', err));
             conn.on('open', () => { isMultiplayer = true; document.getElementById('chat-button').style.display = 'flex'; conn.send({ type: 'HANDSHAKE', name: myName }); });
             conn.on('data', d => {
                 if(d.type==='HANDSHAKE'){ partnerName=d.name; if(amIHost){ players=[myName, partnerName]; conn.send({type:'HANDSHAKE_REPLY', hostName:myName, syncPlayers:players}); showScreen('screen-categories'); updateTurnDisplays(); evaluateAuthority(); } }
