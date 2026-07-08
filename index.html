@@ -822,9 +822,9 @@
             { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
             { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
-        let peerConfig = { config: { iceServers: iceServersList } };
+        let peerConfig = { host: 'pour-toi-et-moi-signaling.onrender.com', port: 443, secure: true, path: '/', config: { iceServers: iceServersList } };
         // Config de repli : force le passage par le relais TURN (plus lent, mais bien plus fiable entre réseaux différents type Wi-Fi + 4G)
-        let peerConfigRelay = { config: { iceServers: iceServersList, iceTransportPolicy: 'relay' } };
+        let peerConfigRelay = { host: 'pour-toi-et-moi-signaling.onrender.com', port: 443, secure: true, path: '/', config: { iceServers: iceServersList, iceTransportPolicy: 'relay' } };
         let myName = "", partnerName = "", players = [], currentPlayerIndex = 0, selectedCategoryIndex = null;
         let isMultiplayer = false, isRandomMode = false, amIHost = false, isChatOpen = false, currentCardType = null;
         let peer = null, conn = null, PREFIX = "lovegame-2026-";
@@ -840,7 +840,12 @@
         }
 
         function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
-        function openMultiplayerMenu() { myName = document.getElementById('p1-name').value.trim() || "Lui"; showScreen('screen-multi-config'); }
+        function openMultiplayerMenu() {
+            myName = document.getElementById('p1-name').value.trim() || "Lui";
+            showScreen('screen-multi-config');
+            // Réveille le serveur de signalisation à l'avance (il se met en veille après 15 min d'inactivité)
+            fetch('https://pour-toi-et-moi-signaling.onrender.com/').catch(() => {});
+        }
         function cancelMultiplayer() { if(peer) peer.destroy(); showScreen('screen-setup'); }
 
         function initHost(useRelay) {
